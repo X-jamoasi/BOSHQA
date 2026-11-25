@@ -1,0 +1,87 @@
+import { createClient } from '@supabase/supabase-js';
+import { randomBytes } from 'node:crypto';
+import { makeSupabase, supabaseUrl } from '../../../lib/supabase';
+import { loginEmail, loginPattern, sectors } from '../../../lib/accounts';
+
+const staffRoles = ['manager', 'supplier', 'customer'];
+const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function failure(error, status) {
+  return Response.json({ error }, { status });
+}
+
+function validPassword(password) {
+  return typeof password === 'string' && [...password].length >= 8 && Buffer.byteLength(password) <= 72;
+}
+
+export async function POST(request) {
+  const secret = process.env.SUPABASE_SECRET_KEY;
+  if (!secret || !supabaseUrl) return failure('Hisob yaratish xizmati sozlanmagan.', 503);
+  const input = await request.json().catch(() => null);
+  if (!input || typeof input !== 'object') return failure('Ma’lumotlar yaroqsiz.', 400);
+
+  const auth = { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false };
+  const service = createClient(supabaseUrl, secret, { auth });
+  const { action } = input;
+  let actor;
+  let db;
+  if (action !== 'register') {
+    const authorization = request.headers.get('Authorization');
+    if (!authorization?.startsWith('Bearer ')) return failure('Hisobga kiring.', 401);
+    db = makeSupabase({ auth, global: { headers: { Authorization: authorization } } });
+    if (!db) return failure('Hisob xizmati sozlanmagan.', 503);
+    const { data, error } = await db.auth.getUser(authorization.slice(7));
+    if (error || !data.user) return failure('Hisobga qayta kiring.', 401);
+    actor = data.user;
+  }
+
+  if (action === 'password') {
+    if (actor.app_metadata.must_change_password !== true) return failure('Parolni majburiy almashtirish talab qilinmaydi.', 409);
+    if (!validPassword(input.password)) return failure('Yangi parol kamida 8 belgidan va ko‘pi bilan 72 baytdan iborat bo‘lsin.', 400);
+    if (typeof input.currentPassword !== 'string' || input.currentPassword === input.password) {
+      return failure('Vaqtinchalik paroldan farqli yangi parol tanlang.', 400);
+    }
+    const verifier = makeSupabase({ auth });
+    const { error: verifyError } = await verifier.auth.signInWithPassword({ email: actor.email, password: input.currentPassword });
+    if (verifyError) return failure('Vaqtinchalik parol noto‘g‘ri.', 401);
+    const { error } = await service.auth.admin.updateUserById(actor.id, {
+      password: input.password, app_metadata: { must_change_password: false },
+    });
+    if (error) return failure('Parolni yangilab bo‘lmadi.', 502);
+    return Response.json({ ok: true });
+  }
+
+  if (!['register', 'staff'].includes(action)) return failure('Amal yaroqsiz.', 400);
+  const login = typeof input.login === 'string' ? input.login.trim().toLowerCase() : '';
+  if (!loginPattern.test(login)) return failure('Login 3–32 ta lotin harfi, raqam, nuqta, chiziq yoki pastki chiziqdan iborat bo‘lsin.', 400);
+
+  let metadata;
+  let password;
+  if (action === 'register') {
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    const contact = typeof input.contact === 'string' ? input.contact.trim() : '';
+    if (name.length < 2 || name.length > 100 || !sectors.includes(input.sector) ||
+      contact.length > 254 || !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact) || /^\+[1-9]\d{7,14}$/.test(contact)) || !validPassword(input.password)) {
+      return failure('Korxona nomi, yo‘nalish, aloqa ma’lumoti va parolni tekshiring.', 400);
+    }
+    metadata = { boshqa_kind: 'company', company_name: name, sector: input.sector, contact };
+    password = input.password;
+  } else {
+    if (typeof input.company !== 'string' || !uuid.test(input.company) || !staffRoles.includes(input.role)) {
+      return failure('Korxona yoki rol yaroqsiz.', 400);
+    }
+    const { data: role, error } = await db.rpc('company_role', { p_company: input.company });
+    if (error || role !== 'owner') return failure('Xodimni faqat korxona egasi qo‘sha oladi.', 403);
+    metadata = { boshqa_kind: 'staff', company_id: input.company, created_by: actor.id, role: input.role, must_change_password: true };
+    password = randomBytes(18).toString('base64url') + 'aA7!';
+  }
+
+  const { error } = await service.auth.admin.createUser({
+    email: loginEmail(login), password, email_confirm: true, app_metadata: { ...metadata, login },
+  });
+  if (error?.code === 'email_exists' || error?.code === 'user_already_exists') return failure('Bu login band.', 409);
+  if (error) return failure('Hisob yaratilmadi. Korxona sozlamalari va migratsiyani tekshiring.', 502);
+  return Response.json(action === 'staff' ? { login, password } : { ok: true }, {
+    status: 201, headers: { 'Cache-Control': 'no-store' },
+  });
+}

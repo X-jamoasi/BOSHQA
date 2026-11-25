@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { makeSupabase } from '../lib/supabase';
+import { loginEmail, sectors } from '../lib/accounts';
 
 const db = typeof window === 'undefined' ? null : makeSupabase();
 
@@ -37,36 +38,89 @@ function Form({ onSubmit, label, children }) {
   </form>;
 }
 
+async function accountAction(values, token) {
+  const response = await fetch('/api/accounts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    body: JSON.stringify(values),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Hisob amalini bajarib bo‘lmadi.');
+  return result;
+}
+
+function LoginField() {
+  return <label>Login<input name="login" autoComplete="username" minLength="3" maxLength="32"
+    placeholder="Masalan, jizzax_zavod" required /></label>;
+}
+
 function Auth() {
   const [signup, setSignup] = useState(false);
   const [notice, setNotice] = useState('');
   return <main>
     <h1>BOSHQA</h1>
     <section>
-      <h2>{signup ? 'Hisob ochish' : 'Hisobga kirish'}</h2>
-      <Form label={signup ? 'Ro‘yxatdan o‘tish' : 'Kirish'} onSubmit={async fields => {
+      <h2>{signup ? 'Korxonani ro‘yxatdan o‘tkazish' : 'Hisobga kirish'}</h2>
+      <Form key={signup} label={signup ? 'Ro‘yxatdan o‘tish' : 'Kirish'} onSubmit={async fields => {
         setNotice('');
+        const login = fields.get('login').trim().toLowerCase();
+        const password = fields.get('password');
         try {
-          const credentials = { email: fields.get('email').trim(), password: fields.get('password') };
-          const data = signup
-            ? await read(db.auth.signUp({ ...credentials, options: { emailRedirectTo: window.location.origin } }))
-            : await read(db.auth.signInWithPassword(credentials));
-          if (signup && !data.session) setNotice('E-pochtangizga kelgan tasdiqlash havolasini oching.');
+          if (signup) {
+            await accountAction({ ...Object.fromEntries(fields), action: 'register' });
+          }
+          const email = login.includes('@') ? login : loginEmail(login);
+          await read(db.auth.signInWithPassword({ email, password }));
           return true;
         } catch (error) {
           setNotice(error.message);
           return false;
         }
       }}>
-        <label>E-pochta<input type="email" name="email" autoComplete="email" required /></label>
+        {signup && <label>Korxona nomi<input name="name" minLength="2" maxLength="100" required /></label>}
+        {signup ? <LoginField /> : <label>Login yoki e-pochta<input name="login" autoComplete="username" required /></label>}
         <label>Parol<input type="password" name="password" autoComplete={signup ? 'new-password' : 'current-password'} minLength={signup ? 8 : undefined} required /></label>
+        {signup && <>
+          <label>E-pochta yoki telefon<input name="contact" maxLength="254" placeholder="nom@misol.uz yoki +998901234567" required /></label>
+          <label>Faoliyat yo‘nalishi<select name="sector" defaultValue="" required>
+            <option value="" disabled>Tanlang</option>
+            {sectors.map(sector => <option key={sector}>{sector}</option>)}
+          </select></label>
+        </>}
       </Form>
       <p role="status">{notice}</p>
       <button type="button" onClick={() => { setSignup(!signup); setNotice(''); }}>
-        {signup ? 'Hisobim bor' : 'Yangi hisob ochish'}
+        {signup ? 'Hisobim bor' : 'Korxonani ro‘yxatdan o‘tkazish'}
       </button>
     </section>
   </main>;
+}
+
+function ChangePassword({ session }) {
+  const [notice, setNotice] = useState('');
+  return <main><section>
+    <h1>Yangi parol o‘rnating</h1>
+    <p>Korxona panelini ochish uchun vaqtinchalik parolni almashtiring.</p>
+    <Form label="Parolni almashtirish" onSubmit={async fields => {
+      const password = fields.get('password');
+      try {
+        await accountAction({ action: 'password', currentPassword: fields.get('currentPassword'), password }, session.access_token);
+        await read(db.auth.signInWithPassword({ email: session.user.email, password }));
+        return true;
+      } catch (error) {
+        setNotice(error.message);
+        return false;
+      }
+    }}>
+      <label>Vaqtinchalik parol<input type="password" name="currentPassword" autoComplete="current-password" required /></label>
+      <label>Yangi parol<input type="password" name="password" minLength="8" autoComplete="new-password" required /></label>
+    </Form>
+    <p role="status">{notice}</p>
+    <button type="button" onClick={() => db.auth.signOut()}>Chiqish</button>
+  </section></main>;
 }
 
 export default function Page() {
@@ -82,6 +136,7 @@ export default function Page() {
   }
   if (session === undefined) return <main><p>Hisob yuklanmoqda…</p></main>;
   if (!session) return <Auth />;
+  if (session.user.app_metadata.must_change_password === true) return <ChangePassword session={session} />;
   return <Workspace key={session.user.id} session={session} />;
 }
 
@@ -94,7 +149,7 @@ function Workspace({ session }) {
 
   async function load() {
     const [members, adminStatus] = await Promise.all([
-      read(db.from('company_members').select('company_id, role, companies(name)').eq('user_id', session.user.id)),
+      read(db.from('company_members').select('company_id, role, companies(name, sector)').eq('user_id', session.user.id)),
       read(db.rpc('is_platform_admin')),
     ]);
     setMemberships(members);
@@ -111,12 +166,11 @@ function Workspace({ session }) {
   return <div className="shell">
     <aside>
       <div className="brand">BOSHQA<span>.</span></div>
-      <p className="demo">{session.user.email}</p>
+      <p className="demo">{session.user.app_metadata.login || session.user.email}</p>
       <nav aria-label="Korxonalar">
         {memberships.map(item => <button key={item.company_id} aria-pressed={selected === item.company_id}
           onClick={() => setSelected(item.company_id)}>{item.companies.name}</button>)}
         {admin && <button aria-pressed={selected === 'platform'} onClick={() => setSelected('platform')}>Platforma</button>}
-        <button aria-pressed={selected === 'new'} onClick={() => setSelected('new')}>Yangi korxona</button>
         <button onClick={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}>Chiqish</button>
       </nav>
     </aside>
@@ -125,24 +179,7 @@ function Workspace({ session }) {
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
       {selected === 'platform' && admin && <Platform />}
       {member && <Company key={member.company_id} member={member} token={session.access_token} />}
-      {(selected === 'new' || (loaded && !selected)) && <section>
-        <h1>Yangi korxona</h1>
-        <p>Mavjud korxonaga qo‘shilish uchun uning egasiga hisobingizdagi e-pochta manzilini bering.</p>
-        <Form label="Korxona ochish" onSubmit={async fields => {
-          try {
-            const id = await read(db.rpc('create_company', { p_name: fields.get('name') }));
-            await load();
-            setSelected(id);
-            setNotice('');
-            return true;
-          } catch (error) {
-            setNotice(error.message);
-            return false;
-          }
-        }}>
-          <label>Korxona nomi<input name="name" minLength="2" maxLength="100" required /></label>
-        </Form>
-      </section>}
+      {loaded && !selected && <p>Hisobingizga korxona biriktirilmagan.</p>}
     </main>
   </div>;
 }
@@ -181,6 +218,7 @@ function Company({ member, token }) {
   const [insight, setInsight] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [changing, setChanging] = useState(false);
+  const [newStaff, setNewStaff] = useState(null);
 
   async function load() {
     const [products, orders, suppliers] = await Promise.all([
@@ -240,17 +278,34 @@ function Company({ member, token }) {
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
   const { products, orders, suppliers } = snapshot;
   return <>
-    <header><p className="company">{member.companies.name}</p><h1>{roles[role]}</h1><button className="action" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button></header>
+    <header><p className="company">{member.companies.name}</p>{member.companies.sector && <p>{member.companies.sector}</p>}<h1>{roles[role]}</h1><button className="action" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button></header>
     {notice && <p role="status">{notice}</p>}
     {role === 'owner' && <section>
-      <h2>Xodim yoki hamkor qo‘shish</h2>
-      <Form label="Qo‘shish" onSubmit={fields => change('add_company_member', {
-        p_company: id, p_email: fields.get('email'), p_role: fields.get('role'),
-      })}>
-        <label>Tasdiqlangan hisob e-pochtasi<input name="email" type="email" required /></label>
+      <h2>Xodim yoki hamkor hisobi</h2>
+      <Form label="Hisob yaratish" onSubmit={async fields => {
+        setNotice('');
+        setNewStaff(null);
+        try {
+          const result = await accountAction({
+            action: 'staff', company: id, login: fields.get('login'), role: fields.get('role'),
+          }, token);
+          setNewStaff(result);
+          return true;
+        } catch (error) {
+          setNotice(error.message);
+          return false;
+        }
+      }}>
+        <LoginField />
         <label>Rol<select name="role">{Object.entries(roles).filter(([key]) => key !== 'owner').map(([key, label]) =>
           <option key={key} value={key}>{label}</option>)}</select></label>
       </Form>
+      {newStaff && <div className="insight" role="status">
+        <p>Login <code>{newStaff.login}</code></p>
+        <p>Vaqtinchalik parol <code>{newStaff.password}</code></p>
+        <p>Ma’lumotlarni xodimga xavfsiz kanalda bering. Birinchi kirishda parol almashtiriladi.</p>
+        <button type="button" onClick={() => setNewStaff(null)}>Yopish</button>
+      </div>}
     </section>}
     {manages && <section>
       <div className="section-title"><h2>Ombor</h2><button className="action" disabled={analyzing || !products.length} onClick={analyze}>Qoldiqni tahlil qilish</button></div>
