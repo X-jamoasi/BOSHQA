@@ -1,5 +1,4 @@
-import { findChatHelp } from '../../../lib/chat-help';
-import { generateChatAnswer } from '../../../lib/ai-chat-provider';
+import { generateAi } from '../../../lib/ai-provider';
 import { makeSupabase } from '../../../lib/supabase';
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -40,7 +39,7 @@ export async function POST(request) {
   if (!role) return failure('Keyingi savolni yuborishdan oldin bir necha soniya kuting.', 429);
   if (!Object.hasOwn(roleContext, role)) return failure('AI yordamchi uchun ruxsat yo‘q.', 403);
 
-  const result = await generateChatAnswer({
+  const result = await generateAi({
     instructions: 'Siz BOSHQA yordamchisisiz. O‘zbek tilida qisqa, aniq va yoshga mos javob bering. ' +
       roleContext[role] +
       ' BOSHQA bo‘yicha yo‘l-yo‘riq va umumiy savollarga javob bering. Bazaga kirishingiz va amallar bajarish imkoniyatingiz yo‘q. ' +
@@ -49,10 +48,6 @@ export async function POST(request) {
       role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.text }],
     })),
   });
-  if (result.error) {
-    const help = findChatHelp(messages.at(-1).text, role);
-    if (help) return Response.json({ source: 'guide', text: help });
-    return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
-  }
-  return Response.json({ source: 'ai', text: result.text.slice(0, 3500) });
+  if (result.error) return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
+  return Response.json({ text: result.text.slice(0, 3500) });
 }
