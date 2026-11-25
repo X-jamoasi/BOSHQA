@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function AiChat({ company, token }) {
+export default function AiChat({ company, token, openSignal, standalone }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
@@ -11,9 +11,14 @@ export default function AiChat({ company, token }) {
   const input = useRef(null);
   const opener = useRef(null);
   const end = useRef(null);
+  const visible = standalone || open;
 
   useEffect(() => {
-    if (!open) return;
+    if (openSignal) setOpen(true);
+  }, [openSignal]);
+
+  useEffect(() => {
+    if (standalone || !open) return;
     input.current?.focus();
     function onKeyDown(event) {
       if (event.key === 'Escape') {
@@ -23,11 +28,11 @@ export default function AiChat({ company, token }) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
+  }, [open, standalone]);
 
   useEffect(() => {
-    if (open) end.current?.scrollIntoView({ block: 'nearest' });
-  }, [messages, busy, error, open]);
+    if (visible && (messages.length || busy || error)) end.current?.scrollIntoView({ block: 'nearest' });
+  }, [messages, busy, error, visible]);
 
   function close() {
     setOpen(false);
@@ -61,14 +66,22 @@ export default function AiChat({ company, token }) {
     }
   }
 
-  return <div className="ai-widget">
-    {open && <section className="ai-window" id="ai-yordamchi" aria-labelledby="ai-yordamchi-nomi">
+  return <div className={standalone ? 'ai-workspace' : 'ai-widget'}>
+    {standalone && <header className="page-header"><h1>AI yordamchi</h1></header>}
+    {visible && <section className="ai-window" id="ai-yordamchi" aria-labelledby="ai-yordamchi-nomi">
       <div className="ai-window-title">
-        <h2 id="ai-yordamchi-nomi">AI yordamchi</h2>
-        <button className="secondary" type="button" onClick={close} aria-label="AI yordamchini yopish">×</button>
+        <h2 id="ai-yordamchi-nomi">{standalone ? 'Suhbat' : 'AI yordamchi'}</h2>
+        {!standalone && <button className="secondary" type="button" onClick={close} aria-label="AI yordamchini yopish">×</button>}
       </div>
       <div className="ai-thread" role="log" aria-live="polite">
-        {!messages.length && <p>BOSHQA’dan foydalanish yoki ombor, xodim va buyurtmalar haqida savol bering.</p>}
+        {!messages.length && <>
+          <p>BOSHQA’dan foydalanish haqida savol yuboring.</p>
+          <div className="prompt-list">{(company
+            ? ['Buyurtmani qanday kuzataman?', 'BOSHQA’da qanday yordam ola olaman?']
+            : ['Platforma ko‘rsatkichlarini qanday kuzataman?', 'AI monitoring nima ko‘rsatadi?']
+          ).map(prompt => <button type="button" key={prompt} className="secondary" disabled={busy}
+            onClick={() => { setQuestion(prompt); input.current?.focus(); }}>{prompt}</button>)}</div>
+        </>}
         {messages.map(({ role, text }, index) => <div key={index} className={'ai-message ' + role}>
           <strong>{role === 'user' ? 'Siz' : 'AI yordamchi'}</strong>
           <p>{text}</p>
@@ -84,9 +97,9 @@ export default function AiChat({ company, token }) {
         <button className="action" disabled={busy || !question.trim()}>Yuborish</button>
       </form>
     </section>}
-    <button ref={opener} className="action ai-launcher" type="button" aria-expanded={open}
+    {!standalone && <button ref={opener} className="action ai-launcher" type="button" aria-expanded={open}
       aria-controls={open ? 'ai-yordamchi' : undefined} onClick={() => open ? close() : setOpen(true)}>
       <span aria-hidden="true">✦</span> AI yordamchi
-    </button>
+    </button>}
   </div>;
 }

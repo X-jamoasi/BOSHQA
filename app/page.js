@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
+import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
+import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
 import { loginEmail, sectors } from '../lib/accounts';
 
@@ -144,7 +146,8 @@ export default function Page() {
 
 const sections = [
   ['overview', 'Umumiy ko‘rinish', '▦'],
-  ['products', 'Mahsulotlar', '◈', ['owner', 'manager']],
+  ['products', 'Ombor', '◈', ['owner', 'manager']],
+  ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
@@ -158,6 +161,7 @@ function Workspace({ session }) {
   const [view, setView] = useState('overview');
   const [notice, setNotice] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [aiSignal, setAiSignal] = useState(0);
 
   async function load() {
     const adminStatus = await read(db.rpc('is_platform_admin'));
@@ -176,45 +180,23 @@ function Workspace({ session }) {
   }, []);
 
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
-  return <div className="shell">
-    <aside>
-      <div className="brand"><span aria-hidden="true">B</span> BOSHQA</div>
-      {memberships.length > 1 && <label>Korxona
-        <select value={selected} onChange={event => { setSelected(event.target.value); setView('overview'); }}>
-          {memberships.map(item => <option key={item.company_id} value={item.company_id}>{item.companies.name}</option>)}
-        </select>
-      </label>}
-      <nav aria-label="Boshqaruv bo‘limlari">
-        {member && sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)).map(([id, name, icon]) =>
-          <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
-            <span aria-hidden="true">{icon}</span>{name}
-          </button>
-        )}
-        {admin && platformSections.map(([id, name, icon]) =>
-          <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
-            <span aria-hidden="true">{icon}</span>{name}
-          </button>
-        )}
-      </nav>
-      <button className="signout" onClick={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}>Hisobdan chiqish</button>
-    </aside>
-    <main>
-      <div className="topbar">
-        <div><strong>{member?.companies.name || 'BOSHQA'}</strong>{member?.companies.sector && <small>{member.companies.sector}</small>}</div>
-        <div className="topbar-actions">
-          {member && ['owner','manager'].includes(member.role) && <button className="action" onClick={() => setView('ai')}>✦ AI xulosasi</button>}
-          <div className="account"><strong>{session.user.app_metadata.login || session.user.email}</strong><small>{admin ? 'Super admin' : roles[member?.role]}</small></div>
-        </div>
-      </div>
+  const roleLinks = admin ? platformSections : member ? sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)) : [];
+  const links = roleLinks.length ? [...roleLinks, ['assistant', 'AI yordamchi']] : roleLinks;
+  const hasPanel = Boolean(member || (loaded && admin));
+  return <DashboardShell links={links} view={view} selectView={setView}
+    name={session.user.app_metadata.login || session.user.email || 'Hisob'}
+    role={admin ? 'Platforma egasi' : roles[member?.role]} company={member?.companies} companies={memberships}
+    selected={selected} selectCompany={id => { setSelected(id); setView('overview'); setAiSignal(0); }}
+    signOut={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}
+    openAI={hasPanel ? () => setAiSignal(value => value + 1) : undefined}
+    assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} standalone={view === 'assistant'}
+      company={member?.company_id || null} token={session.access_token} />}>
       {notice && <p role="status">{notice}</p>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
-      {loaded && admin && <Platform db={db} view={view} />}
-      {member && <Company key={member.company_id} member={member} token={session.access_token} view={view} />}
+      {loaded && admin && view !== 'assistant' && <Platform db={db} view={view} />}
+      {member && view !== 'assistant' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
       {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
-    </main>
-    {(member || (loaded && admin)) && <AiChat key={member?.company_id || 'platform'}
-      company={member?.company_id || null} token={session.access_token} />}
-  </div>;
+  </DashboardShell>;
 }
 
 function SupplierSelect({ suppliers }) {
@@ -226,11 +208,14 @@ function SupplierSelect({ suppliers }) {
   </label>;
 }
 
-function Company({ member, token, view }) {
+function Company({ member, token, view, selectView }) {
   const id = member.company_id;
   const role = member.role;
   const manages = role === 'owner' || role === 'manager';
   const [snapshot, setSnapshot] = useState(null);
+  const [days, setDays] = useState(7);
+  const [orderFilter, setOrderFilter] = useState('');
+  const [productQuery, setProductQuery] = useState('');
   const [notice, setNotice] = useState('');
   const [insight, setInsight] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -242,7 +227,7 @@ function Company({ member, token, view }) {
       read(manages
         ? db.rpc('inventory', { p_company: id })
         : db.from('products').select('id,name').eq('company_id', id).order('name')),
-      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address').eq('company_id', id).order('created_at', { ascending: false })),
+      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at').eq('company_id', id).order('created_at', { ascending: false })),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
     ]);
     setSnapshot({ products, orders, suppliers });
@@ -294,9 +279,14 @@ function Company({ member, token, view }) {
 
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
   const { products, orders, suppliers } = snapshot;
+  const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
+  const visibleProducts = products.filter(item => item.name.toLowerCase().includes(productQuery.trim().toLowerCase()));
+  const heading = { owner: 'Korxona egasi paneli', manager: 'Menejer paneli', supplier: 'Yetkazib beruvchi paneli', customer: 'Buyurtmachi paneli' };
   return <>
     <header className="page-header">
-      <h1>{sections.find(item => item[0] === view)[1]}</h1>
+      <div><h1>{view === 'overview' ? heading[role] : sections.find(item => item[0] === view)[1]}</h1>
+        {view === 'overview' && <p>Buyurtmalar va korxona faoliyatining joriy holati</p>}</div>
+      {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
     {notice && <p role="status">{notice}</p>}
@@ -308,7 +298,7 @@ function Company({ member, token, view }) {
         <div><dt>E-pochta yoki telefon</dt><dd>{member.companies.contact || 'Kiritilmagan'}</dd></div>
       </dl>
     </section>}
-    {view === 'overview' && <Overview products={products} orders={orders} manages={manages} />}
+    {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
     {view === 'staff' && role === 'owner' && <section>
       <h2>Xodim yoki hamkor hisobi</h2>
       <Form label="Hisob yaratish" onSubmit={async fields => {
@@ -335,6 +325,13 @@ function Company({ member, token, view }) {
         <p>Ma’lumotlarni xodimga xavfsiz kanalda bering. Birinchi kirishda parol almashtiriladi.</p>
         <button type="button" onClick={() => setNewStaff(null)}>Yopish</button>
       </div>}
+    </section>}
+    {view === 'catalog' && !manages && <section>
+      <div className="panel-heading"><h2>Mahsulotlar ro‘yxati</h2>
+        <input type="search" aria-label="Mahsulot qidirish" placeholder="Mahsulot qidirish…" value={productQuery} onChange={event => setProductQuery(event.target.value)} />
+      </div>
+      {visibleProducts.length ? <div className="table"><table><thead><tr><th>Mahsulot nomi</th></tr></thead>
+        <tbody>{visibleProducts.map(item => <tr key={item.id}><td>{item.name}</td></tr>)}</tbody></table></div> : <p>Mahsulot topilmadi.</p>}
     </section>}
     {view === 'products' && manages && <section>
       <h2>Ombor qoldig‘i</h2>
@@ -374,48 +371,78 @@ function Company({ member, token, view }) {
         </Form>}
     </section>}
     {view === 'orders' && <section>
-      <h2>Buyurtmalar ro‘yxati</h2>
-      {orders.length ? <div className="table"><table>
+      <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2>
+        <select aria-label="Holat bo‘yicha filtrlash" value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
+          <option value="">Barcha holatlar</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </div>
+      {visibleOrders.length ? <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Manzil</th><th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
-        <tbody>{orders.map(order => <tr key={order.id}>
+        <tbody>{visibleOrders.map(order => <tr key={order.id}>
           <td>{products.find(item => item.id === order.product_id)?.name}</td><td>{order.quantity}</td>
-          <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.delivery_address}</td><td>{statuses[order.status]}</td>
+          <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.delivery_address}</td><td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td>
           {role !== 'customer' && <td>
             <OrderActions order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
           </td>}
         </tr>)}</tbody>
-      </table></div> : <p>Buyurtmalar hali yo‘q.</p>}
+      </table></div> : <p>{orderFilter ? 'Bu holatdagi buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</p>}
     </section>}
   </>;
 }
 
-function Overview({ products, orders, manages }) {
-  const low = manages ? products.filter(item => item.stock <= item.minimum).length : 0;
-  const counts = Object.keys(statuses).map(status => [status, orders.filter(order => order.status === status).length]);
-  const delivered = counts.find(([status]) => status === 'delivered')[1];
-  const available = products.length - low;
-  const proportion = products.length ? available / products.length * 100 : 0;
+function Overview({ products, orders, manages, role, days, selectView }) {
+  const low = manages ? products.filter(item => item.stock <= item.minimum) : [];
+  const delivered = orders.filter(order => order.status === 'delivered').length;
+  const active = orders.filter(order => ['pending', 'approved', 'shipped'].includes(order.status)).length;
+  const pending = orders.filter(order => order.status === 'pending').length;
+  const inTransit = orders.filter(order => order.status === 'shipped').length;
+  const recent = orders.slice(0, 5);
+  const catalog = new Map(products.map(product => [product.id, product.name]));
   return <>
-    <div className="metrics">
-      <div><span>Mahsulot turlari</span><strong>{products.length}</strong></div>
-      <div><span>Buyurtmalar</span><strong>{orders.length}</strong></div>
-      <div><span>Topshirilgan</span><strong>{delivered}</strong></div>
-      {manages && <div><span>Minimal qoldiqda</span><strong>{low}</strong></div>}
-    </div>
-    <div className={manages ? 'charts' : undefined}>
-      {manages && <section>
-        <h2>Ombor holati</h2>
-        <div className="stock-chart">
-          <div className="ring" style={{ '--proportion': proportion + '%' }} aria-hidden="true"><strong>{products.length}</strong></div>
-          <div><p><i className="marker" /> Yetarli qoldiq · {available}</p><p><i className="marker warning" /> Minimal yoki undan past · {low}</p></div>
-        </div>
-      </section>}
-      <section>
-        <h2>Buyurtmalar holati</h2>
-        <div className="bars">{counts.map(([status, count]) => <div key={status}>
-          <span>{statuses[status]}</span><progress value={count} max={orders.length || 1} aria-label={statuses[status]} /><strong>{count}</strong>
-        </div>)}</div>
+    <Metrics values={[
+      ['Faol buyurtmalar', active, ClipboardList],
+      ['Topshirilgan', delivered, CircleCheck],
+      ['Mahsulot turlari', products.length, Boxes],
+      manages ? ['Minimal qoldiqda', low.length, TriangleAlert] :
+        role === 'supplier' ? ['Yo‘lda', inTransit, Truck] : ['Kutilmoqda', pending, Clock3],
+    ]} />
+    <div className={'dashboard-grid overview-' + role}>
+      <section><h2>Buyurtmalar dinamikasi</h2>
+        <Trend records={orders} dateKey="created_at" days={days} label="Kunlik buyurtmalar soni" />
       </section>
+      {manages ? <section>
+        <div className="panel-heading"><h2>Kam qolgan mahsulotlar</h2><button className="text-button" onClick={() => selectView('products')}>Omborni ochish →</button></div>
+        {low.length ? <div className="table"><table><thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimum</th></tr></thead>
+          <tbody>{low.slice(0, 5).map(item => <tr key={item.id}><td>{item.name}</td><td className="low">{formatCount(item.stock)}</td><td>{formatCount(item.minimum)}</td></tr>)}</tbody></table></div> :
+          <p>{products.length ? 'Minimal qoldiqdan past mahsulot yo‘q.' : 'Omborda hali mahsulot yo‘q.'}</p>}
+      </section> : <section>
+        <h2>Buyurtma holatlari</h2>
+        <div className="bars">{Object.entries(statuses).filter(([status]) => role !== 'supplier' || status !== 'pending').map(([status, label]) => {
+          const count = orders.filter(order => order.status === status).length;
+          return <div key={status}><span>{label}</span><progress value={count} max={orders.length || 1} aria-label={label} /><strong>{count}</strong></div>;
+        })}</div>
+      </section>}
+      <section className="recent-orders dashboard-wide"><div className="panel-heading"><h2>So‘nggi buyurtmalar</h2>
+        <button className="text-button" onClick={() => selectView('orders')}>Barchasini ko‘rish →</button></div>
+        {recent.length ? <div className="table"><table><thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Holat</th><th>Sana</th></tr></thead>
+          <tbody>{recent.map(order => <tr key={order.id}><td>{catalog.get(order.product_id) || 'Mahsulot'}</td>
+            <td>{formatCount(order.quantity)}</td><td>{order.direction === 'inbound' ? 'Kirim' : 'Chiqim'}</td>
+            <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td><td>{formatDashboardDate(order.created_at, true)}</td></tr>)}</tbody>
+        </table></div> : <p>Buyurtmalar hali yo‘q.</p>}
+      </section>
+      {role === 'supplier' && <section className="dashboard-wide">
+        <div className="panel-heading"><h2>Yetkazib berish jarayoni</h2><button className="text-button" onClick={() => selectView('orders')}>Buyurtmalarni ochish →</button></div>
+        {orders.length ? <div className="delivery-steps">
+          {['approved', 'shipped', 'delivered'].map(status => <div key={status}>
+            <StatusBadge status={status}>{statuses[status]}</StatusBadge>
+            <strong>{formatCount(orders.filter(order => order.status === status).length)}</strong>
+          </div>)}
+        </div> : <p>Biriktirilgan buyurtma hali yo‘q.</p>}
+      </section>}
+      {role === 'owner' && <section className="insight-callout">
+        <div className="panel-heading"><h2>AI biznes tahlili</h2><button className="text-button" onClick={() => selectView('ai')}>AI xulosasini olish →</button></div>
+        <p>Ombordagi mahsulotlarning qoldig‘i bo‘yicha tavsiya oling.</p>
+      </section>}
     </div>
   </>;
 }
