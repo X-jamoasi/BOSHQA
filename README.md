@@ -22,3 +22,4 @@ Tayyor mahsulot buyurtmasi tasdiqlanganda qoldiq kamayadi. Kelgan xomashyoni men
 ## Vercel va Gemini
 
 Vercel’da GitHub repozitoriyini Next.js loyihasi sifatida import qiling. Ikki ommaviy Supabase o‘zgaruvchisini joylashdan avval qo‘shing. Gemini kerak bo‘lsa, `GEMINI_API_KEY` qiymatini faqat server muhitida saqlang. API seans va korxona rolini tekshiradi, mahsulot nomi va qoldiq sonlarini bazadan oladi va har bir foydalanuvchiga daqiqasiga bitta Gemini so‘rovini ruxsat qiladi. Kalitsiz ilova minimal qoldiq bo‘yicha avtomatik tekshiruvni ishlatadi.
+BOSHQA xomashyo kirimi va tayyor mahsulot yetkazilishini boshqaradi.
