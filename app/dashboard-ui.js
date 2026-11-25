@@ -5,7 +5,7 @@ import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, Layo
 
 const icons = {
   overview: House, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
-  ai: Sparkles, assistant: Sparkles, details: Settings2, companies: Building2, monitoring: Sparkles, revenue: WalletCards, activity: ClipboardList,
+  ai: Sparkles, assistant: Sparkles, profile: Settings2, companies: Building2, monitoring: Sparkles, revenue: WalletCards, activity: ClipboardList,
 };
 const counts = new Intl.NumberFormat('uz-UZ');
 const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent', dateStyle: 'short' });

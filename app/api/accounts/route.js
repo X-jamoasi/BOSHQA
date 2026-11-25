@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'node:crypto';
 import { makeSupabase, supabaseUrl } from '../../../lib/supabase';
-import { loginEmail, loginPattern, sectors } from '../../../lib/accounts';
+import { accountLogin, loginEmail, loginPattern, sectors } from '../../../lib/accounts';
 
 const staffRoles = ['manager', 'supplier', 'customer'];
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -33,6 +33,39 @@ export async function POST(request) {
     const { data, error } = await db.auth.getUser(authorization.slice(7));
     if (error || !data.user) return failure('Hisobga qayta kiring.', 401);
     actor = data.user;
+  }
+
+  if (action === 'profile') {
+    if (actor.app_metadata.must_change_password === true) return failure('Avval vaqtinchalik parolni almashtiring.', 403);
+    const fields = [input.login, input.name, input.email, input.phone];
+    if (fields.some(value => typeof value !== 'string')) return failure('Profil ma’lumotlari yaroqsiz.', 400);
+    const [login, name, email, phone] = fields.map(value => value.trim());
+    const normalizedLogin = login.toLowerCase();
+    const currentLogin = accountLogin(actor);
+    if (((normalizedLogin || currentLogin) && !loginPattern.test(normalizedLogin)) || name.length > 100 ||
+      email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+      (phone && !/^\+[1-9]\d{7,14}$/.test(phone))) {
+      return failure('Login, ism, e-pochta yoki telefon formatini tekshiring. Telefonni +998901234567 kabi kiriting.', 400);
+    }
+
+    const loginChanged = Boolean(normalizedLogin && normalizedLogin !== currentLogin);
+    const update = { user_metadata: { full_name: name, profile_email: email, profile_phone: phone } };
+    if (loginChanged) {
+      if (typeof input.currentPassword !== 'string' || !input.currentPassword || input.currentPassword.length > 256) {
+        return failure('Loginni o‘zgartirish uchun amaldagi parolni kiriting.', 400);
+      }
+      const verifier = makeSupabase({ auth });
+      const { error: verifyError } = await verifier.auth.signInWithPassword({ email: actor.email, password: input.currentPassword });
+      if (verifyError) return failure('Amaldagi parolni tasdiqlab bo‘lmadi.', 401);
+      update.email = loginEmail(normalizedLogin);
+      update.email_confirm = true;
+      update.app_metadata = { login: normalizedLogin };
+    }
+
+    const { error } = await service.auth.admin.updateUserById(actor.id, update);
+    if (['email_exists', 'user_already_exists', 'identity_already_exists'].includes(error?.code)) return failure('Bu login band.', 409);
+    if (error) return failure('Profilni saqlab bo‘lmadi.', 502);
+    return Response.json({ ok: true, loginChanged }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   if (action === 'password') {

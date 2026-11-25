@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
+import Profile from './profile';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
-import { loginEmail, sectors } from '../lib/accounts';
+import { accountLogin, loginEmail, sectors } from '../lib/accounts';
 
 const db = typeof window === 'undefined' ? null : makeSupabase();
 
@@ -151,8 +152,15 @@ const sections = [
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
-  ['details', 'Korxona ma’lumotlari', 'ⓘ', ['owner', 'manager']],
 ];
+
+const profileTitles = {
+  owner: 'Korxona ma’lumotlari',
+  manager: 'Menejer profili',
+  supplier: 'Yetkazib beruvchi profili',
+  customer: 'Buyurtmachi profili',
+  admin: 'Super admin profili',
+};
 
 function Workspace({ session }) {
   const [memberships, setMemberships] = useState([]);
@@ -181,10 +189,11 @@ function Workspace({ session }) {
 
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   const roleLinks = admin ? platformSections : member ? sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)) : [];
-  const links = roleLinks.length ? [...roleLinks, ['assistant', 'AI yordamchi']] : roleLinks;
+  const profileTitle = profileTitles[admin ? 'admin' : member?.role] || 'Hisob ma’lumotlari';
+  const links = loaded ? [...roleLinks, ...(roleLinks.length ? [['assistant', 'AI yordamchi']] : []), ['profile', profileTitle]] : roleLinks;
   const hasPanel = Boolean(member || (loaded && admin));
   return <DashboardShell links={links} view={view} selectView={setView}
-    name={session.user.app_metadata.login || session.user.email || 'Hisob'}
+    name={session.user.user_metadata?.full_name || accountLogin(session.user) || session.user.email || 'Hisob'}
     role={admin ? 'Platforma egasi' : roles[member?.role]} company={member?.companies} companies={memberships}
     selected={selected} selectCompany={id => { setSelected(id); setView('overview'); setAiSignal(0); }}
     signOut={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}
@@ -193,9 +202,13 @@ function Workspace({ session }) {
       company={member?.company_id || null} token={session.access_token} />}>
       {notice && <p role="status">{notice}</p>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
-      {loaded && admin && view !== 'assistant' && <Platform db={db} view={view} />}
-      {member && view !== 'assistant' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
-      {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
+      {loaded && view === 'profile' && <Profile key={member?.company_id || 'account'} db={db} session={session}
+        member={member} title={profileTitle} accountAction={accountAction}
+        onCompanySaved={(id, company) => setMemberships(items => items.map(item =>
+          item.company_id === id ? { ...item, companies: { ...item.companies, ...company } } : item))} />}
+      {loaded && admin && view !== 'assistant' && view !== 'profile' && <Platform db={db} view={view} />}
+      {member && view !== 'assistant' && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
+      {loaded && !selected && view !== 'profile' && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
   </DashboardShell>;
 }
 
@@ -290,14 +303,6 @@ function Company({ member, token, view, selectView }) {
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
     {notice && <p role="status">{notice}</p>}
-    {view === 'details' && manages && <section>
-      <h2>Korxona profili</h2>
-      <dl className="company-details">
-        <div><dt>Korxona nomi</dt><dd>{member.companies.name}</dd></div>
-        <div><dt>Faoliyat yo‘nalishi</dt><dd>{member.companies.sector || 'Kiritilmagan'}</dd></div>
-        <div><dt>E-pochta yoki telefon</dt><dd>{member.companies.contact || 'Kiritilmagan'}</dd></div>
-      </dl>
-    </section>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
     {view === 'staff' && role === 'owner' && <section>
       <h2>Xodim yoki hamkor hisobi</h2>

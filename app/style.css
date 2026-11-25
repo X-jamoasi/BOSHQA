@@ -204,3 +204,7 @@ td button { margin: 4px 4px 0 0; }
 @media (min-width: 901px) {
   .overview-owner .recent-orders { grid-column: auto; }
 }
+.profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; max-width: 760px; }
+.profile-fields input, .profile-fields select { width: 100%; }
+.profile-form-note { grid-column: 1 / -1; font-size: 13px; }
+@media (max-width: 600px) { .profile-fields { grid-template-columns: 1fr; } }
