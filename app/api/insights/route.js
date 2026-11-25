@@ -2,6 +2,8 @@ import { generateAi } from '../../../lib/ai-provider';
 import { createClient } from '@supabase/supabase-js';
 import { makeSupabase, supabaseUrl } from '../../../lib/supabase';
 
+export const maxDuration = 50;
+
 async function recordOutcome(outcome, model, reason) {
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret || !supabaseUrl) return;

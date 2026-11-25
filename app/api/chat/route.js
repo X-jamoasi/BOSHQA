@@ -1,6 +1,8 @@
 import { generateAi } from '../../../lib/ai-provider';
 import { makeSupabase } from '../../../lib/supabase';
 
+export const maxDuration = 50;
+
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const roleContext = {
   owner: 'Korxona egasi mahsulot, xodim, buyurtma va ombor ishlarini boshqaradi.',
