@@ -5,6 +5,7 @@ import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
 import Profile from './profile';
 import StaffDirectory from './staff-directory';
+import { AddProduct, CatalogRows, Discounts, Shops, formatMoney, mapUrl } from './sales';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
@@ -149,6 +150,9 @@ export default function Page() {
 const sections = [
   ['overview', 'Umumiy ko‘rinish', '▦'],
   ['products', 'Ombor', '◈', ['owner', 'manager']],
+  ['add-product', 'Mahsulot qo‘shish', '', ['owner', 'manager']],
+  ['shops', 'Do‘konlar', '', ['owner', 'manager', 'customer']],
+  ['discounts', 'Chegirmalar', '', ['owner', 'manager']],
   ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
@@ -236,16 +240,26 @@ function Company({ member, token, view, selectView }) {
   const [changing, setChanging] = useState(false);
   const [newStaff, setNewStaff] = useState(null);
   const [staffRevision, setStaffRevision] = useState(0);
+  const [orderShop, setOrderShop] = useState('');
 
   async function load() {
-    const [products, orders, suppliers] = await Promise.all([
-      read(manages
-        ? db.rpc('inventory', { p_company: id })
-        : db.from('products').select('id,name').eq('company_id', id).order('name')),
-      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at').eq('company_id', id).order('created_at', { ascending: false })),
+    const [inventory, orderRows, suppliers, catalog, shops, discounts, totals] = await Promise.all([
+      manages ? read(db.rpc('inventory', { p_company: id })) : [],
+      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude').eq('company_id', id).order('created_at', { ascending: false })),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
+      read(db.rpc('sales_catalog', { p_company: id })),
+      manages || role === 'customer' ? read(db.rpc('shop_directory', { p_company: id })) : [],
+      manages ? read(db.rpc('company_discounts', { p_company: id })) : [],
+      manages || role === 'customer' ? read(db.rpc('order_sale_totals', { p_company: id })) : [],
     ]);
-    setSnapshot({ products, orders, suppliers });
+    const paths = catalog.map(item => item.image_path).filter(Boolean);
+    const signed = paths.length ? await db.storage.from('product-images').createSignedUrls(paths, 3600) : null;
+    const images = new Map((signed?.data || []).map(item => [item.path, item.signedUrl]));
+    const stockByProduct = new Map(inventory.map(item => [item.id, item]));
+    const products = catalog.map(item => ({ ...stockByProduct.get(item.id), ...item, imageUrl: images.get(item.image_path) }));
+    const totalsByOrder = new Map(totals.map(item => [item.id, item]));
+    const orders = orderRows.map(item => ({ ...item, ...totalsByOrder.get(item.id) }));
+    setSnapshot({ products, orders, suppliers, shops, discounts });
   }
 
   useEffect(() => {
@@ -293,7 +307,7 @@ function Company({ member, token, view, selectView }) {
   }
 
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
-  const { products, orders, suppliers } = snapshot;
+  const { products, orders, suppliers, shops, discounts } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
   const visibleProducts = products.filter(item => item.name.toLowerCase().includes(productQuery.trim().toLowerCase()));
   const heading = { owner: 'Korxona egasi paneli', manager: 'Menejer paneli', supplier: 'Yetkazib beruvchi paneli', customer: 'Buyurtmachi paneli' };
@@ -343,27 +357,26 @@ function Company({ member, token, view, selectView }) {
     <StaffDirectory db={db} company={id} roles={roles} statuses={statuses} revision={staffRevision}
       onChanged={() => load().catch(error => setNotice(error.message))} />
     </>}
+    {view === 'shops' && <Shops shops={shops} canAdd={role === 'customer'} Form={Form} change={change} company={id}
+      openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
+    {view === 'add-product' && manages && <AddProduct db={db} company={id} Form={Form} change={change} onError={setNotice} />}
+    {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && !manages && <section>
       <div className="panel-heading"><h2>Mahsulotlar ro‘yxati</h2>
         <input type="search" aria-label="Mahsulot qidirish" placeholder="Mahsulot qidirish…" value={productQuery} onChange={event => setProductQuery(event.target.value)} />
       </div>
-      {visibleProducts.length ? <div className="table"><table><thead><tr><th>Mahsulot nomi</th></tr></thead>
-        <tbody>{visibleProducts.map(item => <tr key={item.id}><td>{item.name}</td></tr>)}</tbody></table></div> : <p>Mahsulot topilmadi.</p>}
+      {visibleProducts.length ? <CatalogRows products={visibleProducts} showPrice={role === 'customer'} /> : <p>Mahsulot topilmadi.</p>}
     </section>}
     {view === 'products' && manages && <section>
-      <h2>Ombor qoldig‘i</h2>
+      <div className="panel-heading"><h2>Ombor qoldig‘i</h2>
+        <button type="button" className="text-button" onClick={() => selectView('add-product')}>Mahsulot qo‘shish →</button>
+      </div>
       <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimal miqdor</th></tr></thead>
-        <tbody>{products.map(item => <tr key={item.id}><td>{item.name}</td><td className={item.stock <= item.minimum ? 'low' : ''}>{item.stock}</td><td>{item.minimum}</td></tr>)}</tbody>
+        <tbody>{products.map(item => <tr key={item.id}><td>{item.name}</td><td className={item.stock <= item.minimum ? 'low' : ''}>{item.stock} {item.unit}</td><td>{item.minimum} {item.unit}</td></tr>)}</tbody>
       </table></div>
-      <h3>Mahsulot qo‘shish</h3>
-      <Form label="Saqlash" onSubmit={fields => change('add_product', {
-        p_company: id, p_name: fields.get('name'), p_stock: Number(fields.get('stock')), p_minimum: Number(fields.get('minimum')),
-      })}>
-        <label>Nomi<input name="name" minLength="2" maxLength="80" required /></label>
-        <label>Boshlang‘ich qoldiq<input name="stock" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
-        <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
-      </Form>
+      <h3>Mahsulot ma’lumotlari</h3>
+      {products.length ? <CatalogRows products={products} showPrice /> : <p>Omborda mahsulot yo‘q.</p>}
     </section>}
     {view === 'ai' && manages && <section>
       <h2>Ombor bo‘yicha AI tavsiyasi</h2>
@@ -376,15 +389,30 @@ function Company({ member, token, view, selectView }) {
     </section>}
     {view === 'orders' && (manages || role === 'customer') && <section>
       <h2>{manages ? 'Xomashyo buyurtmasi' : 'Yangi buyurtma'}</h2>
-      {!products.length || (manages && !suppliers.length) ? <p>{manages ? 'Avval mahsulot va ta’minotchi qo‘shing.' : 'Katalogda mahsulot yo‘q.'}</p> :
-        <Form label="Buyurtma berish" onSubmit={fields => change('create_order', {
-          p_company: id, p_product: fields.get('product'), p_quantity: Number(fields.get('quantity')),
-          p_direction: manages ? 'inbound' : 'outbound', p_address: fields.get('address'), p_supplier: fields.get('supplier'),
-        })}>
-          <label>Mahsulot<select name="product">{products.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      {!products.length || (manages ? !suppliers.length : !shops.length) ? <p>{manages
+        ? 'Avval mahsulot va ta’minotchi qo‘shing.'
+        : products.length ? 'Buyurtma berish uchun avval Do‘konlar bo‘limida do‘kon qo‘shing.' : 'Katalogda mahsulot yo‘q.'}</p> :
+        <Form key={orderShop} label="Buyurtma berish" onSubmit={fields => {
+          const product = fields.get('product');
+          const quantity = Number(fields.get('quantity'));
+          return manages ? change('create_order', {
+            p_company: id, p_product: product, p_quantity: quantity,
+            p_direction: 'inbound', p_address: fields.get('address'), p_supplier: fields.get('supplier'),
+          }) : change('create_shop_order', {
+            p_company: id, p_product: product, p_quantity: quantity, p_shop: fields.get('shop'),
+          });
+        }}>
+          <label>Mahsulot<select name="product">{products.map(item => <option key={item.id} value={item.id}>
+            {item.name} · {item.unit}{!manages && item.price != null ? ' · ' + formatMoney(item.price * (100 - item.discount) / 100) : ''}
+          </option>)}</select></label>
           <label>Miqdor<input name="quantity" type="number" min="1" max="1000000" required /></label>
-          <label>Yetkazish manzili<input name="address" minLength="5" maxLength="250" required /></label>
-          {manages && <SupplierSelect suppliers={suppliers} />}
+          {manages ? <>
+            <label>Yetkazish manzili<input name="address" minLength="5" maxLength="250" required /></label>
+            <SupplierSelect suppliers={suppliers} />
+          </> : <label>Yetkaziladigan do‘kon<select name="shop" defaultValue={orderShop} required>
+            <option value="" disabled>Do‘konni tanlang</option>
+            {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name} · {shop.address}</option>)}
+          </select></label>}
         </Form>}
     </section>}
     {view === 'orders' && <section>
@@ -394,10 +422,14 @@ function Company({ member, token, view, selectView }) {
         </select>
       </div>
       {visibleOrders.length ? <div className="table"><table>
-        <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Manzil</th><th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
+        <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
         <tbody>{visibleOrders.map(order => <tr key={order.id}>
-          <td>{products.find(item => item.id === order.product_id)?.name}</td><td>{order.quantity}</td>
-          <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.delivery_address}</td><td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td>
+          <td>{products.find(item => item.id === order.product_id)?.name}</td><td>{order.quantity} {order.order_unit || ''}</td>
+          <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.shop_name && <><strong>{order.shop_name}</strong><br /></>}{order.delivery_address}
+            {order.delivery_latitude != null && order.delivery_longitude != null && <><br /><a href={mapUrl(order.delivery_latitude, order.delivery_longitude)} target="_blank" rel="noreferrer">Xaritada</a></>}
+          </td>
+          {role !== 'supplier' && <td>{formatMoney(order.order_total)}{order.discount_percent > 0 && <small> · −{order.discount_percent}%</small>}</td>}
+          <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td>
           {role !== 'customer' && <td>
             <OrderActions order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
           </td>}

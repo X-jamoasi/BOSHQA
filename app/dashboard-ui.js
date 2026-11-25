@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards } from 'lucide-react';
+import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, PackagePlus, Percent } from 'lucide-react';
 
 const icons = {
-  overview: House, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
+  overview: House, shops: Store, 'add-product': PackagePlus, discounts: Percent, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
   ai: Sparkles, assistant: Sparkles, profile: Settings2, companies: Building2, monitoring: Sparkles, revenue: WalletCards, activity: ClipboardList,
 };
 const counts = new Intl.NumberFormat('uz-UZ');
