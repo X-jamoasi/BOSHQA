@@ -1,5 +1,5 @@
 import { findChatHelp } from '../../../lib/chat-help';
-import { generateAi } from '../../../lib/ai-provider';
+import { generateChatAnswer } from '../../../lib/ai-chat-provider';
 import { makeSupabase } from '../../../lib/supabase';
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -40,7 +40,7 @@ export async function POST(request) {
   if (!role) return failure('Keyingi savolni yuborishdan oldin bir necha soniya kuting.', 429);
   if (!Object.hasOwn(roleContext, role)) return failure('AI yordamchi uchun ruxsat yo‘q.', 403);
 
-  const result = await generateAi({
+  const result = await generateChatAnswer({
     instructions: 'Siz BOSHQA yordamchisisiz. O‘zbek tilida qisqa, aniq va yoshga mos javob bering. ' +
       roleContext[role] +
       ' BOSHQA bo‘yicha yo‘l-yo‘riq va umumiy savollarga javob bering. Bazaga kirishingiz va amallar bajarish imkoniyatingiz yo‘q. ' +

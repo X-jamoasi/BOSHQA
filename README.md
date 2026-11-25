@@ -33,3 +33,5 @@ Korxona ma’lumotlari alohida bo‘limda ko‘rsatiladi.
 Super admin boshqaruv paneli va Gemini monitoringini yoqish uchun [platforma migratsiyasini](supabase/migrations/202611250004_platform_dashboard.sql) 003-migratsiyadan keyin bajaring. Monitoring faqat yangi tahlil natijalarini qayd etadi. Daromad bo‘limi to‘lov tizimi ulangach ma’lumot ko‘rsatadi.
 
 Paneldagi AI yordamchini yoqish uchun [AI chat migratsiyasini](supabase/migrations/202611250005_ai_chat.sql) bajaring. Chat o‘zbek tilida javob beradi. Chatga savol va shu oynadagi yaqin suhbat yuboriladi, korxona bazasi chat uchun uzatilmaydi.
+
+Chat uchun ixtiyoriy zaxira AI ulanishi Vercel Production muhitidagi server o‘zgaruvchisi `OPENAI_API_KEY` orqali yoqiladi. Birlamchi AI band yoki sozlanmagan bo‘lsa, chat savoli va yaqin suhbat OpenAI’ga yuboriladi. Zaxira faqat AI yordamchi chatida ishlaydi. Ombor xulosasi uchun mavjud sozlama ishlatiladi.
