@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePlus, X } from 'lucide-react';
 
 export const units = ['dona','blok','kg','qop','tonna','litr','metr','quti','paket','juft'];
 const money = new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 2 });
@@ -41,15 +42,41 @@ export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
   </>;
 }
 
-export function AddProduct({ db, company, Form, change, onError }) {
-  return <section>
-    <h2>Yangi mahsulot</h2>
-    <Form label="Mahsulotni saqlash" onSubmit={async fields => {
+export function AddProduct({ db, company, Form, change, onError, notice, onClose, onSaved }) {
+  const dialog = useRef(null);
+  const nameInput = useRef(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element.open) element.showModal();
+    nameInput.current?.focus();
+    return () => { if (element.open) element.close(); };
+  }, []);
+
+  useEffect(() => {
+    if (!imageFile?.size || !['image/jpeg', 'image/png', 'image/webp'].includes(imageFile.type) || imageFile.size > 2097152) {
+      setPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
+  async function save(fields) {
+    setBusy(true);
+    setAttempted(true);
+    onError('');
+    let path = null;
+    try {
       const image = fields.get('image');
-      let path = null;
       if (image?.size) {
         const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-        if (!extensions[image.type] || image.size > 2097152) {
+        if (!Object.hasOwn(extensions, image.type) || image.size > 2097152) {
           onError('Rasm JPG, PNG yoki WebP formatida va ko‘pi bilan 2 MB bo‘lishi kerak.');
           return false;
         }
@@ -65,18 +92,60 @@ export function AddProduct({ db, company, Form, change, onError }) {
         p_minimum: Number(fields.get('minimum')), p_unit: fields.get('unit'),
         p_barcode: fields.get('barcode'), p_price: Number(fields.get('price')), p_image: path,
       });
-      if (!saved && path) await db.storage.from('product-images').remove([path]);
+      if (saved) onSaved();
+      else if (path) await db.storage.from('product-images').remove([path]);
       return saved;
-    }}>
-      <label>Mahsulot nomi<input name="name" minLength="2" maxLength="80" required /></label>
-      <label>O‘lchov birligi<select name="unit">{units.map(unit => <option key={unit}>{unit}</option>)}</select></label>
-      <label>Boshlang‘ich miqdor<input name="stock" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
-      <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
-      <label>Birlik narxi, so‘m<input name="price" type="number" min="0" max="999999999999.99" step="0.01" required /></label>
-      <label>Shtrix kod (ixtiyoriy)<input name="barcode" inputMode="numeric" pattern="[0-9]{4,32}" maxLength="32" /></label>
-      <label>Mahsulot rasmi<input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
-    </Form>
-  </section>;
+    } catch {
+      onError('Mahsulotni saqlab bo‘lmadi. Qayta urinib ko‘ring.');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function dismiss() {
+    if (!busy) onClose();
+  }
+
+  return <dialog ref={dialog} className="product-drawer" aria-labelledby="new-product-title" aria-busy={busy}
+    onCancel={event => { event.preventDefault(); dismiss(); }}
+    onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
+    <div className="product-drawer-panel">
+      <header className="product-drawer-header">
+        <div><p>Ombor / Mahsulotlar</p><h2 id="new-product-title">Mahsulot qo‘shish</h2></div>
+        <button className="icon-button" type="button" aria-label="Shaklni yopish" disabled={busy} onClick={dismiss}><X size={20} /></button>
+      </header>
+      <div className="product-drawer-content">
+        <Form label="Mahsulotni saqlash" onSubmit={save}>
+          <fieldset className="product-form-group" disabled={busy}>
+            <legend>Mahsulot ma’lumotlari</legend>
+            <label>Mahsulot nomi<input ref={nameInput} name="name" minLength="2" maxLength="80" required /></label>
+            <label>O‘lchov birligi<select name="unit">{units.map(unit => <option key={unit}>{unit}</option>)}</select></label>
+            <label>Shtrix kod (ixtiyoriy)<input name="barcode" inputMode="numeric" pattern="[0-9]{4,32}" maxLength="32" /></label>
+          </fieldset>
+          <fieldset className="product-form-group" disabled={busy}>
+            <legend>Mahsulot rasmi</legend>
+            <label className="product-image-input">
+              {preview ? <img src={preview} width="52" height="52" alt="Tanlangan mahsulot rasmi" />
+                : <ImagePlus size={24} aria-hidden="true" />}
+              <span><strong>{imageFile?.name || 'Rasm faylini tanlang'}</strong><small>JPG, PNG yoki WebP · 2 MB gacha</small></span>
+              <input aria-label="Mahsulot rasmi" name="image" type="file" accept="image/jpeg,image/png,image/webp"
+                onChange={event => setImageFile(event.target.files?.[0] || null)} />
+            </label>
+          </fieldset>
+          <fieldset className="product-form-group" disabled={busy}>
+            <legend>Narx va ombor qoldig‘i</legend>
+            <label>Birlik narxi, so‘m<input name="price" type="number" min="0" max="999999999999.99" step="0.01" required /></label>
+            <div className="product-form-pair">
+              <label>Boshlang‘ich miqdor<input name="stock" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
+              <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
+            </div>
+          </fieldset>
+          {attempted && notice && <p role={busy ? 'status' : 'alert'} className="product-form-error">{notice}</p>}
+        </Form>
+      </div>
+    </div>
+  </dialog>;
 }
 
 export function Discounts({ products, discounts, company, Form, change }) {

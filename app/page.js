@@ -309,15 +309,16 @@ function Company({ member, token, view, selectView }) {
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
   const { products, orders, suppliers, shops, discounts } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
+  const addingProduct = view === 'add-product' && manages;
   const heading = { owner: 'Korxona egasi paneli', manager: 'Menejer paneli', supplier: 'Yetkazib beruvchi paneli', customer: 'Buyurtmachi paneli' };
   return <>
     <header className="page-header">
-      <div><h1>{view === 'overview' ? heading[role] : sections.find(item => item[0] === view)[1]}</h1>
+      <div><h1>{view === 'overview' ? heading[role] : addingProduct ? 'Ombor' : sections.find(item => item[0] === view)[1]}</h1>
         {view === 'overview' && <p>Buyurtmalar va korxona faoliyatining joriy holati</p>}</div>
       {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
-    {notice && <p role="status">{notice}</p>}
+    {notice && !addingProduct && <p role="status">{notice}</p>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
     {view === 'staff' && role === 'owner' && <>
     <section>
@@ -358,10 +359,11 @@ function Company({ member, token, view, selectView }) {
     </>}
     {view === 'shops' && <Shops shops={shops} canAdd={role === 'customer'} Form={Form} change={change} company={id}
       openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
-    {view === 'add-product' && manages && <AddProduct db={db} company={id} Form={Form} change={change} onError={setNotice} />}
+    {addingProduct && <AddProduct db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
+      onClose={() => { setNotice(''); selectView('products'); }} onSaved={() => selectView('products')} />}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}
-    {view === 'products' && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} />}
+    {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} />}
     {view === 'ai' && manages && <section>
       <h2>Ombor bo‘yicha AI tavsiyasi</h2>
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>

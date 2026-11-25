@@ -246,3 +246,26 @@ td button { margin: 4px 4px 0 0; }
   .workspace-main form label { min-width: 0; max-width: 100%; }
   .workspace-main form input[type=file] { width: 100%; }
 }
+body:has(.product-drawer[open]) { overflow: hidden; }
+.product-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; padding: 0; width: min(100%, 470px); max-width: 100%; height: 100dvh; max-height: 100dvh; border: 0; background: #f6f8fb; color: inherit; box-shadow: -10px 0 32px #10182826; }
+.product-drawer::backdrop { background: #10182866; }
+.product-drawer-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.product-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; background: #fff; border-bottom: 1px solid var(--line); }
+.workspace-main .product-drawer-header h2 { margin: 0; font-size: 19px; }
+.product-drawer-header p { margin: 0 0 4px; font-size: 12px; }
+.product-drawer-content { overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 22px; }
+.product-drawer-content form { display: grid; align-items: start; gap: 14px; }
+.product-form-group { display: grid; gap: 11px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.product-form-group legend { padding: 0 5px; font-size: 14px; font-weight: 650; }
+.product-form-group label { font-size: 13px; }
+.product-form-group input, .product-form-group select { min-width: 0; width: 100%; }
+.product-form-group :disabled { opacity: .75; }
+.product-form-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.product-image-input { position: relative; cursor: pointer; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 12px; border: 1px dashed #b9ccec; border-radius: 8px; background: #f6faff; color: var(--accent); }
+.product-image-input img { object-fit: cover; border-radius: 6px; }
+.product-image-input small { display: block; color: var(--muted); margin-top: 3px; }
+.product-image-input strong { overflow-wrap: anywhere; }
+.product-image-input:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.product-image-input input[type=file] { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; opacity: 0; }
+.product-form-error { color: #b42318; font-size: 13px; }
+.product-drawer-content form > .action { justify-self: start; }
