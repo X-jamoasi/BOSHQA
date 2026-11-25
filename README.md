@@ -29,3 +29,5 @@ Korxona egasi xodim uchun login va vaqtinchalik parol yaratishi mumkin.
 Super admin platforma ko‘rsatkichlarini, korxona egasi esa o‘z ombori va xodimlarini boshqaradi.
 BOSHQA panelida mahsulotlar, xodimlar va buyurtmalar alohida bo‘limlarda.
 Korxona ma’lumotlari alohida bo‘limda ko‘rsatiladi.
+
+Super admin boshqaruv paneli va Gemini monitoringini yoqish uchun [platforma migratsiyasini](supabase/migrations/202611250004_platform_dashboard.sql) 003-migratsiyadan keyin bajaring. Monitoring faqat yangi tahlil natijalarini qayd etadi. Daromad bo‘limi to‘lov tizimi ulangach ma’lumot ko‘rsatadi.

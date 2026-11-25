@@ -1,4 +1,19 @@
-import { makeSupabase } from '../../../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { makeSupabase, supabaseUrl } from '../../../lib/supabase';
+
+async function recordOutcome(outcome, model, reason) {
+  const secret = process.env.SUPABASE_SECRET_KEY;
+  if (!secret || !supabaseUrl) return;
+  try {
+    const service = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { error } = await service.from('platform_ai_events').insert({
+      outcome, model: model?.slice(0, 100), reason,
+    }).abortSignal(AbortSignal.timeout(2500));
+    if (error) console.warn('Gemini monitoring write failed', error.code);
+  } catch {
+    console.warn('Gemini monitoring write unavailable');
+  }
+}
 
 export async function POST(request) {
   const authorization = request.headers.get('Authorization');
@@ -29,18 +44,21 @@ export async function POST(request) {
   const stockSummary = low.length
     ? low.map(item => item.name + ' (' + item.stock + ' dona, minimum ' + item.minimum + ')').join('; ')
     : 'Kam qolgan mahsulot yo‘q.';
-  const fallback = reason => Response.json({ source: 'rules', text: reason + '\n\n' + stockSummary });
-
-  const key = process.env.GEMINI_API_KEY?.trim();
-  if (!key) return fallback('Vercel Production muhitida GEMINI_API_KEY topilmadi.');
+  let model = process.env.GEMINI_MODEL?.trim().replace(/^models\//, '') || 'gemini-2.5-flash';
+  const fallback = async (reason, outcome = 'error') => {
+    await recordOutcome(outcome, outcome === 'unconfigured' ? null : model, reason);
+    return Response.json({ source: 'rules', text: reason + '\n\n' + stockSummary });
+  };
 
   const { data: allowed, error: limitError } = await db.rpc('allow_inventory_analysis', { p_company: company });
   if (limitError) return Response.json({ error: 'Tahlilni boshlashning imkoni bo‘lmadi.' }, { status: 502 });
   if (!allowed) return Response.json({ error: 'Keyingi tahlil uchun bir daqiqa kuting.' }, { status: 429 });
 
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key) return fallback('Vercel Production muhitida GEMINI_API_KEY topilmadi.', 'unconfigured');
+
   const prioritized = [...products].sort((a, b) => (a.stock - a.minimum) - (b.stock - b.minimum));
   try {
-    const configuredModel = process.env.GEMINI_MODEL?.trim().replace(/^models\//, '');
     const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models';
     const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': key };
     const generate = name => fetch(endpoint + '/' + encodeURIComponent(name) + ':generateContent', {
@@ -53,7 +71,6 @@ export async function POST(request) {
         generationConfig: { maxOutputTokens: 1024 },
       }),
     });
-    let model = configuredModel || 'gemini-2.5-flash';
     let response = await generate(model);
     if ([400, 404].includes(response.status)) {
       const catalog = await fetch(endpoint + '?pageSize=100', { headers, signal: AbortSignal.timeout(5000) });
@@ -91,10 +108,13 @@ export async function POST(request) {
     const text = result?.candidates?.[0]?.content?.parts
       ?.filter(part => !part.thought && typeof part.text === 'string')
       .map(part => part.text).join('').trim();
-    if (text) return Response.json({
-      source: 'gemini', model,
-      text: products.length > 100 ? 'Qoldig‘i minimal miqdorga eng yaqin yoki undan eng past 100 ta mahsulot tahlil qilindi.\n' + text : text,
-    });
+    if (text) {
+      await recordOutcome('success', model);
+      return Response.json({
+        source: 'gemini', model,
+        text: products.length > 100 ? 'Qoldig‘i minimal miqdorga eng yaqin yoki undan eng past 100 ta mahsulot tahlil qilindi.\n' + text : text,
+      });
+    }
     return fallback('Gemini javobida tahlil matni topilmadi.');
   } catch (error) {
     return fallback(error.name === 'TimeoutError'

@@ -72,3 +72,5 @@ td button { margin: 4px 4px 0 0; }
 .company-details div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .company-details dt { font-size: 14px; color: var(--muted); }
 .company-details dd { margin: 4px 0 0; font-weight: 650; overflow-wrap: anywhere; }
+.platform-filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.platform-filters label { min-width: min(220px, 100%); }

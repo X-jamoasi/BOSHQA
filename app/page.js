@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Platform, { platformSections } from './platform';
 import { makeSupabase } from '../lib/supabase';
 import { loginEmail, sectors } from '../lib/accounts';
 
@@ -188,7 +189,11 @@ function Workspace({ session }) {
             <span aria-hidden="true">{icon}</span>{name}
           </button>
         )}
-        {admin && <button aria-current="page"><span aria-hidden="true">▦</span>Platforma</button>}
+        {admin && platformSections.map(([id, name, icon]) =>
+          <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
+            <span aria-hidden="true">{icon}</span>{name}
+          </button>
+        )}
       </nav>
       <button className="signout" onClick={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}>Hisobdan chiqish</button>
     </aside>
@@ -202,27 +207,11 @@ function Workspace({ session }) {
       </div>
       {notice && <p role="status">{notice}</p>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
-      {loaded && admin && <Platform />}
+      {loaded && admin && <Platform db={db} view={view} />}
       {member && <Company key={member.company_id} member={member} token={session.access_token} view={view} />}
       {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
     </main>
   </div>;
-}
-
-function Platform() {
-  const [companies, setCompanies] = useState(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    read(db.rpc('platform_summary')).then(setCompanies).catch(error => setError(error.message));
-  }, []);
-  return <section>
-    <h1>Platforma egasi</h1>
-    {error && <p role="status">{error}</p>}
-    {companies && <div className="table"><table>
-      <thead><tr><th>Korxona</th><th>A’zolar</th><th>Buyurtmalar</th></tr></thead>
-      <tbody>{companies.map(item => <tr key={item.company_id}><td>{item.name}</td><td>{item.member_count}</td><td>{item.order_count}</td></tr>)}</tbody>
-    </table></div>}
-  </section>;
 }
 
 function SupplierSelect({ suppliers }) {
