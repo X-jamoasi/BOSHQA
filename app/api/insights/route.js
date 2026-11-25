@@ -8,7 +8,7 @@ async function recordOutcome(outcome, model, reason) {
   try {
     const service = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
     const { error } = await service.from('platform_ai_events').insert({
-      outcome, model: model?.slice(0, 100), reason,
+      outcome, model: model?.slice(0, 100), reason: reason?.slice(0, 240),
     }).abortSignal(AbortSignal.timeout(2500));
     if (error) console.warn('Gemini monitoring write failed', error.code);
   } catch {
