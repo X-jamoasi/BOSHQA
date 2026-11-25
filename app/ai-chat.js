@@ -77,7 +77,8 @@ export default function AiChat({ company, token, openSignal, standalone, role })
         {!messages.length && <>
           <p>BOSHQA’dan foydalanish haqida savol yuboring.</p>
           <div className="prompt-list">{(company
-            ? ['Buyurtmani qanday kuzataman?', ['owner', 'manager'].includes(role) ? 'Qaysi mahsulot kam qoldi?' : 'BOSHQA’da qanday yordam ola olaman?']
+            ? [role === 'owner' ? 'Bugun qancha savdo bo‘ldi?' : 'Buyurtmani qanday kuzataman?',
+               ['owner', 'manager'].includes(role) ? 'Qaysi mahsulot kam qoldi?' : 'BOSHQA’da qanday yordam ola olaman?']
             : ['Platforma ko‘rsatkichlarini qanday kuzataman?', 'AI monitoring nima ko‘rsatadi?']
           ).map(prompt => <button type="button" key={prompt} className="secondary" disabled={busy}
             onClick={() => { setQuestion(prompt); input.current?.focus(); }}>{prompt}</button>)}</div>

@@ -42,13 +42,15 @@ export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
   </>;
 }
 
-export function AddProduct({ db, company, Form, change, onError, notice, onClose, onSaved }) {
+export function AddProduct({ db, company, Form, change, onError, notice, onClose, onSaved, product }) {
   const dialog = useRef(null);
   const nameInput = useRef(null);
   const [imageFile, setImageFile] = useState(null);
   const [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [originalStock] = useState(product?.stock);
+  const shownImage = preview || product?.imageUrl;
 
   useEffect(() => {
     const element = dialog.current;
@@ -87,12 +89,18 @@ export function AddProduct({ db, company, Form, change, onError, notice, onClose
           return false;
         }
       }
-      const saved = await change('add_catalog_product', {
+      const values = {
         p_company: company, p_name: fields.get('name'), p_stock: Number(fields.get('stock')),
         p_minimum: Number(fields.get('minimum')), p_unit: fields.get('unit'),
-        p_barcode: fields.get('barcode'), p_price: Number(fields.get('price')), p_image: path,
-      });
-      if (saved) onSaved();
+        p_barcode: fields.get('barcode'), p_price: Number(fields.get('price')), p_image: path || product?.image_path || null,
+      };
+      const saved = product
+        ? await change('update_catalog_product', { ...values, p_product: product.id, p_expected_stock: originalStock })
+        : await change('add_catalog_product', values);
+      if (saved) {
+        if (path && product?.image_path) await db.storage.from('product-images').remove([product.image_path]);
+        onSaved();
+      }
       else if (path) await db.storage.from('product-images').remove([path]);
       return saved;
     } catch {
@@ -112,33 +120,33 @@ export function AddProduct({ db, company, Form, change, onError, notice, onClose
     onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <div className="product-drawer-panel">
       <header className="product-drawer-header">
-        <div><p>Ombor / Mahsulotlar</p><h2 id="new-product-title">Mahsulot qo‘shish</h2></div>
+        <div><p>Ombor / Mahsulotlar</p><h2 id="new-product-title">{product ? 'Mahsulotni tahrirlash' : 'Mahsulot qo‘shish'}</h2></div>
         <button className="icon-button" type="button" aria-label="Shaklni yopish" disabled={busy} onClick={dismiss}><X size={20} /></button>
       </header>
       <div className="product-drawer-content">
         <Form label="Mahsulotni saqlash" onSubmit={save}>
           <fieldset className="product-form-group" disabled={busy}>
             <legend>Mahsulot ma’lumotlari</legend>
-            <label>Mahsulot nomi<input ref={nameInput} name="name" minLength="2" maxLength="80" required /></label>
-            <label>O‘lchov birligi<select name="unit">{units.map(unit => <option key={unit}>{unit}</option>)}</select></label>
-            <label>Shtrix kod (ixtiyoriy)<input name="barcode" inputMode="numeric" pattern="[0-9]{4,32}" maxLength="32" /></label>
+            <label>Mahsulot nomi<input ref={nameInput} name="name" minLength="2" maxLength="80" defaultValue={product?.name || ''} required /></label>
+            <label>O‘lchov birligi<select name="unit" defaultValue={product?.unit || 'dona'}>{units.map(unit => <option key={unit}>{unit}</option>)}</select></label>
+            <label>Shtrix kod (ixtiyoriy)<input name="barcode" inputMode="numeric" pattern="[0-9]{4,32}" maxLength="32" defaultValue={product?.barcode || ''} /></label>
           </fieldset>
           <fieldset className="product-form-group" disabled={busy}>
             <legend>Mahsulot rasmi</legend>
             <label className="product-image-input">
-              {preview ? <img src={preview} width="52" height="52" alt="Tanlangan mahsulot rasmi" />
+              {shownImage ? <img src={shownImage} width="52" height="52" alt="Tanlangan mahsulot rasmi" />
                 : <ImagePlus size={24} aria-hidden="true" />}
-              <span><strong>{imageFile?.name || 'Rasm faylini tanlang'}</strong><small>JPG, PNG yoki WebP · 2 MB gacha</small></span>
+              <span><strong>{imageFile?.name || (product?.image_path ? 'Rasmni almashtirish' : 'Rasm faylini tanlang')}</strong><small>JPG, PNG yoki WebP · 2 MB gacha</small></span>
               <input aria-label="Mahsulot rasmi" name="image" type="file" accept="image/jpeg,image/png,image/webp"
                 onChange={event => setImageFile(event.target.files?.[0] || null)} />
             </label>
           </fieldset>
           <fieldset className="product-form-group" disabled={busy}>
             <legend>Narx va ombor qoldig‘i</legend>
-            <label>Birlik narxi, so‘m<input name="price" type="number" min="0" max="999999999999.99" step="0.01" required /></label>
+            <label>Birlik narxi, so‘m<input name="price" type="number" min="0" max="999999999999.99" step="0.01" defaultValue={product?.price ?? ''} required /></label>
             <div className="product-form-pair">
-              <label>Boshlang‘ich miqdor<input name="stock" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
-              <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
+              <label>{product ? 'Joriy qoldiq' : 'Boshlang‘ich miqdor'}<input name="stock" type="number" min="0" max="2147483647" defaultValue={originalStock ?? 0} required /></label>
+              <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue={product?.minimum ?? 0} required /></label>
             </div>
           </fieldset>
           {attempted && notice && <p role={busy ? 'status' : 'alert'} className="product-form-error">{notice}</p>}

@@ -6,6 +6,7 @@ import AiChat from './ai-chat';
 import Profile from './profile';
 import StaffDirectory from './staff-directory';
 import ProductList from './product-list';
+import SubscriptionPlans from './subscription-plans';
 import { AddProduct, Discounts, Shops, formatMoney, mapUrl } from './sales';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
@@ -154,6 +155,7 @@ const sections = [
   ['add-product', 'Mahsulot qo‘shish', '', ['owner', 'manager']],
   ['shops', 'Do‘konlar', '', ['owner', 'manager', 'customer']],
   ['discounts', 'Chegirmalar', '', ['owner', 'manager']],
+  ['subscriptions', 'Obunalar', '', ['owner']],
   ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
@@ -238,6 +240,7 @@ function Company({ member, token, view, selectView }) {
   const [insight, setInsight] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [changing, setChanging] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
   const [newStaff, setNewStaff] = useState(null);
   const [staffRevision, setStaffRevision] = useState(0);
   const [orderShop, setOrderShop] = useState('');
@@ -310,6 +313,12 @@ function Company({ member, token, view, selectView }) {
   const { products, orders, suppliers, shops, discounts } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
   const addingProduct = view === 'add-product' && manages;
+  const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
+  const productDrawerOpen = addingProduct || Boolean(editingProduct);
+  function closeProduct() {
+    setEditingProductId(null);
+    selectView('products');
+  }
   const heading = { owner: 'Korxona egasi paneli', manager: 'Menejer paneli', supplier: 'Yetkazib beruvchi paneli', customer: 'Buyurtmachi paneli' };
   return <>
     <header className="page-header">
@@ -318,7 +327,7 @@ function Company({ member, token, view, selectView }) {
       {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
-    {notice && !addingProduct && <p role="status">{notice}</p>}
+    {notice && !productDrawerOpen && <p role="status">{notice}</p>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
     {view === 'staff' && role === 'owner' && <>
     <section>
@@ -359,11 +368,13 @@ function Company({ member, token, view, selectView }) {
     </>}
     {view === 'shops' && <Shops shops={shops} canAdd={role === 'customer'} Form={Form} change={change} company={id}
       openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
-    {addingProduct && <AddProduct db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
-      onClose={() => { setNotice(''); selectView('products'); }} onSaved={() => selectView('products')} />}
+    {productDrawerOpen && <AddProduct key={editingProduct?.id || 'new'} product={editingProduct}
+      db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
+      onClose={() => { setNotice(''); closeProduct(); }} onSaved={closeProduct} />}
+    {view === 'subscriptions' && role === 'owner' && <SubscriptionPlans company={id} />}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}
-    {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} />}
+    {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} editProduct={setEditingProductId} />}
     {view === 'ai' && manages && <section>
       <h2>Ombor bo‘yicha AI tavsiyasi</h2>
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>

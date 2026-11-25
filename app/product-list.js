@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, Eye, Package, Plus, Search } from 'lucide-react';
+import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, Eye, Package, Pencil, Plus, Search } from 'lucide-react';
 import { formatCount, StatusBadge } from './dashboard-ui';
 import { formatMoney, units } from './sales';
 
@@ -33,7 +33,7 @@ function SortHeading({ field, label, sort, changeSort }) {
   </th>;
 }
 
-export default function ProductList({ products, manages, showPrice, addProduct }) {
+export default function ProductList({ products, manages, showPrice, addProduct, editProduct }) {
   const [query, setQuery] = useState('');
   const [unit, setUnit] = useState('');
   const [filter, setFilter] = useState('');
@@ -115,8 +115,11 @@ export default function ProductList({ products, manages, showPrice, addProduct }
             {showPrice && <td><div className="product-price"><strong>{formatMoney(price)}</strong>
               {discounted && <small><s>{formatMoney(item.price)}</s> · −{item.discount}%</small>}</div></td>}
             {manages && <td><StatusBadge status={tone}>{stockLabel}</StatusBadge><small className="product-stock">{item.stock == null ? '—' : formatCount(item.stock) + ' ' + item.unit}</small></td>}
-            <td><button type="button" className="product-detail-button" aria-expanded={expanded} aria-label={item.name + ' tafsilotlari'}
-              onClick={() => setSelected(expanded ? null : item.id)}><Eye size={15} aria-hidden="true" />{expanded ? 'Yopish' : 'Ko‘rish'}</button></td>
+            <td><div className="product-row-actions"><button type="button" className="product-detail-button" aria-expanded={expanded} aria-label={item.name + ' tafsilotlari'}
+              onClick={() => setSelected(expanded ? null : item.id)}><Eye size={15} aria-hidden="true" />{expanded ? 'Yopish' : 'Ko‘rish'}</button>
+              {editProduct && <button type="button" className="product-detail-button" aria-label={item.name + ' mahsulotini tahrirlash'}
+                onClick={() => editProduct(item.id)}><Pencil size={15} aria-hidden="true" />Tahrirlash</button>}
+            </div></td>
           </tr>
           {expanded && <tr className="product-detail-row"><td colSpan={colSpan}>
             <dl className="company-details">
