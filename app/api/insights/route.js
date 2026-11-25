@@ -40,10 +40,10 @@ export async function POST(request) {
 
   const prioritized = [...products].sort((a, b) => (a.stock - a.minimum) - (b.stock - b.minimum));
   try {
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/';
+    const configuredModel = process.env.GEMINI_MODEL?.trim().replace(/^models\//, '');
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models';
     const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': key };
-    const generate = name => fetch(endpoint + encodeURIComponent(name) + ':generateContent', {
+    const generate = name => fetch(endpoint + '/' + encodeURIComponent(name) + ':generateContent', {
       method: 'POST',
       headers,
       signal: AbortSignal.timeout(12000),
@@ -53,15 +53,25 @@ export async function POST(request) {
         generationConfig: { maxOutputTokens: 1024 },
       }),
     });
+    let model = configuredModel || 'gemini-2.5-flash';
     let response = await generate(model);
-    if (response.status === 404 && !process.env.GEMINI_MODEL) {
+    if ([400, 404].includes(response.status)) {
       const catalog = await fetch(endpoint + '?pageSize=100', { headers, signal: AbortSignal.timeout(5000) });
       if (catalog.ok) {
         const { models = [] } = await catalog.json();
-        const candidates = models.filter(item => /^models\/gemini-[\d.]+-flash(?:-preview)?$/.test(item.name) &&
-          item.supportedGenerationMethods?.includes('generateContent'));
-        const alternate = candidates.find(item => !item.name.endsWith('-preview')) || candidates[0];
-        if (alternate) response = await generate(alternate.name.slice('models/'.length));
+        const alternatives = models
+          .filter(item => /^models\/gemini-[\d.]+-flash(?:[-\w]*)$/.test(item.name) &&
+            !/(image|audio|tts|live|robotics)/.test(item.name) &&
+            item.supportedGenerationMethods?.includes('generateContent'))
+          .map(item => item.name.slice('models/'.length))
+          .filter(name => name !== model)
+          .sort((a, b) => Number(/preview|exp/.test(a)) - Number(/preview|exp/.test(b)) ||
+            b.localeCompare(a, 'en', { numeric: true }));
+        for (const candidate of alternatives.slice(0, 2)) {
+          model = candidate;
+          response = await generate(model);
+          if (response.status !== 404) break;
+        }
       }
     }
     const result = await response.json().catch(() => null);
@@ -82,7 +92,7 @@ export async function POST(request) {
       ?.filter(part => !part.thought && typeof part.text === 'string')
       .map(part => part.text).join('').trim();
     if (text) return Response.json({
-      source: 'gemini',
+      source: 'gemini', model,
       text: products.length > 100 ? 'Qoldig‘i minimal miqdorga eng yaqin yoki undan eng past 100 ta mahsulot tahlil qilindi.\n' + text : text,
     });
     return fallback('Gemini javobida tahlil matni topilmadi.');

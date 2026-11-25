@@ -68,3 +68,7 @@ td button { margin: 4px 4px 0 0; }
   nav button, .signout { padding: 8px; }
   .account { font-size: 12px; }
 }
+.company-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0; }
+.company-details div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.company-details dt { font-size: 14px; color: var(--muted); }
+.company-details dd { margin: 4px 0 0; font-weight: 650; overflow-wrap: anywhere; }

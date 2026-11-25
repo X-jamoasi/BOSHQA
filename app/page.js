@@ -146,6 +146,7 @@ const sections = [
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
+  ['details', 'Korxona ma’lumotlari', 'ⓘ', ['owner', 'manager']],
 ];
 
 function Workspace({ session }) {
@@ -158,8 +159,9 @@ function Workspace({ session }) {
 
   async function load() {
     const adminStatus = await read(db.rpc('is_platform_admin'));
+    if (typeof adminStatus !== 'boolean') throw new Error('Hisob roli tekshirilmadi. Sahifani yangilang.');
     const members = adminStatus ? [] : await read(
-      db.from('company_members').select('company_id, role, companies(name, sector)').eq('user_id', session.user.id)
+      db.from('company_members').select('company_id, role, companies(name, sector, contact)').eq('user_id', session.user.id)
     );
     setMemberships(members);
     setAdmin(adminStatus);
@@ -171,7 +173,7 @@ function Workspace({ session }) {
     load().catch(error => setNotice(error.message));
   }, []);
 
-  const member = memberships.find(item => item.company_id === selected);
+  const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   return <div className="shell">
     <aside>
       <div className="brand"><span aria-hidden="true">B</span> BOSHQA</div>
@@ -200,7 +202,7 @@ function Workspace({ session }) {
       </div>
       {notice && <p role="status">{notice}</p>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
-      {selected === 'platform' && admin && <Platform />}
+      {loaded && admin && <Platform />}
       {member && <Company key={member.company_id} member={member} token={session.access_token} view={view} />}
       {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
     </main>
@@ -290,7 +292,7 @@ function Company({ member, token, view }) {
         body: JSON.stringify({ company: id }),
       });
       const result = await response.json();
-      setInsight({ text: result.text ?? result.error, source: result.source });
+      setInsight({ text: result.text ?? result.error, source: result.source, model: result.model });
     } catch {
       setInsight({ text: 'Tahlil xizmatiga ulanib bo‘lmadi.' });
     } finally {
@@ -306,6 +308,14 @@ function Company({ member, token, view }) {
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
     {notice && <p role="status">{notice}</p>}
+    {view === 'details' && manages && <section>
+      <h2>Korxona profili</h2>
+      <dl className="company-details">
+        <div><dt>Korxona nomi</dt><dd>{member.companies.name}</dd></div>
+        <div><dt>Faoliyat yo‘nalishi</dt><dd>{member.companies.sector || 'Kiritilmagan'}</dd></div>
+        <div><dt>E-pochta yoki telefon</dt><dd>{member.companies.contact || 'Kiritilmagan'}</dd></div>
+      </dl>
+    </section>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} />}
     {view === 'staff' && role === 'owner' && <section>
       <h2>Xodim yoki hamkor hisobi</h2>
@@ -355,6 +365,7 @@ function Company({ member, token, view }) {
       <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'Gemini bilan tahlil'}</button>
       {insight && <div className="insight" role="status">
         {insight.source && <strong>{insight.source === 'gemini' ? 'Gemini tahlili' : 'Qoidaga asoslangan tekshiruv'}</strong>}
+        {insight.model && <p>Model {insight.model}</p>}
         <p>{insight.text}</p>
       </div>}
     </section>}
