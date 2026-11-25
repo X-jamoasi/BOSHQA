@@ -111,14 +111,3 @@ export function Discounts({ products, discounts, company, Form, change }) {
     </section>
   </>;
 }
-
-export function CatalogRows({ products, showPrice }) {
-  return <div className="table"><table>
-    <thead><tr><th>Mahsulot</th><th>Birlik</th><th>Shtrix kod</th>{showPrice && <th>Narx</th>}</tr></thead>
-    <tbody>{products.map(item => <tr key={item.id}>
-      <td><span className="catalog-product">{item.imageUrl && <img src={item.imageUrl} alt="" width="44" height="44" loading="lazy" />}{item.name}</span></td>
-      <td>{item.unit}</td><td>{item.barcode || '—'}</td>
-      {showPrice && <td>{item.price != null && item.discount > 0 ? <><s>{formatMoney(item.price)}</s> · {formatMoney(item.price * (100 - item.discount) / 100)}</> : formatMoney(item.price)}</td>}
-    </tr>)}</tbody>
-  </table></div>;
-}

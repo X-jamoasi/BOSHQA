@@ -5,7 +5,8 @@ import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
 import Profile from './profile';
 import StaffDirectory from './staff-directory';
-import { AddProduct, CatalogRows, Discounts, Shops, formatMoney, mapUrl } from './sales';
+import ProductList from './product-list';
+import { AddProduct, Discounts, Shops, formatMoney, mapUrl } from './sales';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
@@ -233,7 +234,6 @@ function Company({ member, token, view, selectView }) {
   const [snapshot, setSnapshot] = useState(null);
   const [days, setDays] = useState(7);
   const [orderFilter, setOrderFilter] = useState('');
-  const [productQuery, setProductQuery] = useState('');
   const [notice, setNotice] = useState('');
   const [insight, setInsight] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -309,7 +309,6 @@ function Company({ member, token, view, selectView }) {
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
   const { products, orders, suppliers, shops, discounts } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
-  const visibleProducts = products.filter(item => item.name.toLowerCase().includes(productQuery.trim().toLowerCase()));
   const heading = { owner: 'Korxona egasi paneli', manager: 'Menejer paneli', supplier: 'Yetkazib beruvchi paneli', customer: 'Buyurtmachi paneli' };
   return <>
     <header className="page-header">
@@ -361,23 +360,8 @@ function Company({ member, token, view, selectView }) {
       openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
     {view === 'add-product' && manages && <AddProduct db={db} company={id} Form={Form} change={change} onError={setNotice} />}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
-    {view === 'catalog' && !manages && <section>
-      <div className="panel-heading"><h2>Mahsulotlar ro‘yxati</h2>
-        <input type="search" aria-label="Mahsulot qidirish" placeholder="Mahsulot qidirish…" value={productQuery} onChange={event => setProductQuery(event.target.value)} />
-      </div>
-      {visibleProducts.length ? <CatalogRows products={visibleProducts} showPrice={role === 'customer'} /> : <p>Mahsulot topilmadi.</p>}
-    </section>}
-    {view === 'products' && manages && <section>
-      <div className="panel-heading"><h2>Ombor qoldig‘i</h2>
-        <button type="button" className="text-button" onClick={() => selectView('add-product')}>Mahsulot qo‘shish →</button>
-      </div>
-      <div className="table"><table>
-        <thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimal miqdor</th></tr></thead>
-        <tbody>{products.map(item => <tr key={item.id}><td>{item.name}</td><td className={item.stock <= item.minimum ? 'low' : ''}>{item.stock} {item.unit}</td><td>{item.minimum} {item.unit}</td></tr>)}</tbody>
-      </table></div>
-      <h3>Mahsulot ma’lumotlari</h3>
-      {products.length ? <CatalogRows products={products} showPrice /> : <p>Omborda mahsulot yo‘q.</p>}
-    </section>}
+    {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}
+    {view === 'products' && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} />}
     {view === 'ai' && manages && <section>
       <h2>Ombor bo‘yicha AI tavsiyasi</h2>
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>
