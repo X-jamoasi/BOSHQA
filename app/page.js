@@ -325,6 +325,7 @@ function Company({ member, token, view, selectView }) {
           <option key={key} value={key}>{label}</option>)}</select></label>
       </Form>
       {newStaff && <div className="insight" role="status">
+        <p>{newStaff.recovered ? 'Xodim hisobi tiklandi.' : 'Xodim hisobi yaratildi.'}</p>
         <p>Login <code>{newStaff.login}</code></p>
         <p>Vaqtinchalik parol <code>{newStaff.password}</code></p>
         <p>Ma’lumotlarni xodimga xavfsiz kanalda bering. Birinchi kirishda parol almashtiriladi.</p>

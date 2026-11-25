@@ -109,17 +109,52 @@ export async function POST(request) {
     password = randomBytes(18).toString('base64url') + 'aA7!';
   }
 
-  const { data, error } = await service.auth.admin.createUser({
-    email: loginEmail(login), password, email_confirm: true, app_metadata: { ...metadata, login },
+  const email = loginEmail(login);
+  async function finalizeStaff(userId) {
+    const { data: staffId, error } = await service.rpc('finalize_staff_membership', {
+      p_company: input.company, p_actor: actor.id, p_role: input.role, p_email: email, p_user: userId,
+    });
+    if (error) console.warn('Staff membership could not be finalized', error.code);
+    return { staffId, error };
+  }
+
+  const staffResponse = (recovered) => Response.json({ login, password, recovered }, {
+    status: recovered ? 200 : 201, headers: { 'Cache-Control': 'no-store' },
   });
-  if (error?.code === 'email_exists' || error?.code === 'user_already_exists') return failure('Bu login band.', 409);
+  const membershipFailure = () => failure('Xodimni biriktirish xizmati ishlamadi. Supabase xodimlar migratsiyasini tekshiring.', 502);
+
+  if (action === 'staff') {
+    const { staffId, error } = await finalizeStaff(null);
+    if (error) return membershipFailure();
+    if (staffId) {
+      const { error: resetError } = await service.auth.admin.updateUserById(staffId, { password });
+      if (resetError) {
+        console.warn('Recovered staff password could not be set', resetError.code);
+        return failure('Xodim korxonaga biriktirildi, lekin vaqtinchalik parolni yaratib bo‘lmadi. Platforma egasiga murojaat qiling.', 502);
+      }
+      return staffResponse(true);
+    }
+  }
+
+  const { data, error } = await service.auth.admin.createUser({
+    email, password, email_confirm: true, app_metadata: { ...metadata, login },
+  });
+  const exists = ['email_exists', 'user_already_exists', 'identity_already_exists'].includes(error?.code);
+  if (action === 'staff' && !error) {
+    const { staffId, error: membershipError } = await finalizeStaff(data.user.id);
+    if (membershipError) return membershipFailure();
+    if (!staffId) return failure('Hisob yaratildi, lekin korxonaga biriktirib bo‘lmadi. Shu login va rol bilan qayta urinib ko‘ring.', 502);
+    return staffResponse(false);
+  }
+
+  if (exists) return failure('Bu login band.', 409);
   if (error) return failure('Hisob yaratilmadi. Korxona sozlamalari va migratsiyani tekshiring.', 502);
   const { data: membership, error: membershipError } = await service.from('company_members')
     .select('company_id').eq('user_id', data.user.id).maybeSingle();
   if (membershipError || !membership) {
     return failure('Hisob yaratildi, lekin korxona biriktirilmadi. Platforma egasiga murojaat qiling.', 502);
   }
-  return Response.json(action === 'staff' ? { login, password } : { ok: true }, {
+  return Response.json({ ok: true }, {
     status: 201, headers: { 'Cache-Control': 'no-store' },
   });
 }
