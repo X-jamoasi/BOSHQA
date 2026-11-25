@@ -27,3 +27,4 @@ BOSHQA xomashyo kirimi va tayyor mahsulot yetkazilishini boshqaradi.
 Yangi korxona egasi login bilan kiradi. Avvalgi hisoblar uchun e-pochta orqali kirish saqlangan. Xodim birinchi kirishda vaqtinchalik parolni o‘zgartiradi. Korxona egasi uni xodimga xavfsiz kanal orqali bir marta yuboradi.
 Korxona egasi xodim uchun login va vaqtinchalik parol yaratishi mumkin.
 Super admin platforma ko‘rsatkichlarini, korxona egasi esa o‘z ombori va xodimlarini boshqaradi.
+BOSHQA panelida mahsulotlar, xodimlar va buyurtmalar alohida bo‘limlarda.
