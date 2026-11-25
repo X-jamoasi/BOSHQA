@@ -90,6 +90,7 @@ export async function POST(request) {
 
   let metadata;
   let password;
+  let staffProfile;
   if (action === 'register') {
     const name = typeof input.name === 'string' ? input.name.trim() : '';
     const contact = typeof input.contact === 'string' ? input.contact.trim() : '';
@@ -105,6 +106,12 @@ export async function POST(request) {
     }
     const { data: role, error } = await db.rpc('company_role', { p_company: input.company });
     if (error || role !== 'owner') return failure('Xodimni faqat korxona egasi qo‘sha oladi.', 403);
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    const phone = typeof input.phone === 'string' ? input.phone.trim() : '';
+    if (name.length > 100 || (phone && !/^\+[1-9]\d{7,14}$/.test(phone))) {
+      return failure('Ism yoki telefon formatini tekshiring. Telefonni +998901234567 kabi kiriting.', 400);
+    }
+    staffProfile = { ...(name ? { full_name: name } : {}), ...(phone ? { profile_phone: phone } : {}) };
     metadata = { boshqa_kind: 'staff', company_id: input.company, created_by: actor.id, role: input.role, must_change_password: true };
     password = randomBytes(18).toString('base64url') + 'aA7!';
   }
@@ -127,7 +134,7 @@ export async function POST(request) {
     const { staffId, error } = await finalizeStaff(null);
     if (error) return membershipFailure();
     if (staffId) {
-      const { error: resetError } = await service.auth.admin.updateUserById(staffId, { password });
+      const { error: resetError } = await service.auth.admin.updateUserById(staffId, { password, user_metadata: staffProfile });
       if (resetError) {
         console.warn('Recovered staff password could not be set', resetError.code);
         return failure('Xodim korxonaga biriktirildi, lekin vaqtinchalik parolni yaratib bo‘lmadi. Platforma egasiga murojaat qiling.', 502);
@@ -137,7 +144,7 @@ export async function POST(request) {
   }
 
   const { data, error } = await service.auth.admin.createUser({
-    email, password, email_confirm: true, app_metadata: { ...metadata, login },
+    email, password, email_confirm: true, app_metadata: { ...metadata, login }, user_metadata: staffProfile,
   });
   const exists = ['email_exists', 'user_already_exists', 'identity_already_exists'].includes(error?.code);
   if (action === 'staff' && !error) {

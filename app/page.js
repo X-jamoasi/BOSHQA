@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
 import Profile from './profile';
+import StaffDirectory from './staff-directory';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
@@ -234,6 +235,7 @@ function Company({ member, token, view, selectView }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [changing, setChanging] = useState(false);
   const [newStaff, setNewStaff] = useState(null);
+  const [staffRevision, setStaffRevision] = useState(0);
 
   async function load() {
     const [products, orders, suppliers] = await Promise.all([
@@ -304,16 +306,20 @@ function Company({ member, token, view, selectView }) {
     </header>
     {notice && <p role="status">{notice}</p>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
-    {view === 'staff' && role === 'owner' && <section>
-      <h2>Xodim yoki hamkor hisobi</h2>
+    {view === 'staff' && role === 'owner' && <>
+    <section>
+      <h2>Xodim qo‘shish</h2>
       <Form label="Hisob yaratish" onSubmit={async fields => {
         setNotice('');
         setNewStaff(null);
         try {
           const result = await accountAction({
             action: 'staff', company: id, login: fields.get('login'), role: fields.get('role'),
+            name: fields.get('name'), phone: fields.get('phone'),
           }, token);
           setNewStaff(result);
+          setStaffRevision(value => value + 1);
+          load().catch(error => setNotice(error.message));
           return true;
         } catch (error) {
           setNotice(error.message);
@@ -321,6 +327,8 @@ function Company({ member, token, view, selectView }) {
         }
       }}>
         <LoginField />
+        <label>Ism va familiya<input name="name" maxLength="100" /></label>
+        <label>Telefon<input name="phone" type="tel" maxLength="16" placeholder="+998901234567" /></label>
         <label>Rol<select name="role">{Object.entries(roles).filter(([key]) => key !== 'owner').map(([key, label]) =>
           <option key={key} value={key}>{label}</option>)}</select></label>
       </Form>
@@ -331,7 +339,10 @@ function Company({ member, token, view, selectView }) {
         <p>Ma’lumotlarni xodimga xavfsiz kanalda bering. Birinchi kirishda parol almashtiriladi.</p>
         <button type="button" onClick={() => setNewStaff(null)}>Yopish</button>
       </div>}
-    </section>}
+    </section>
+    <StaffDirectory db={db} company={id} roles={roles} statuses={statuses} revision={staffRevision}
+      onChanged={() => load().catch(error => setNotice(error.message))} />
+    </>}
     {view === 'catalog' && !manages && <section>
       <div className="panel-heading"><h2>Mahsulotlar ro‘yxati</h2>
         <input type="search" aria-label="Mahsulot qidirish" placeholder="Mahsulot qidirish…" value={productQuery} onChange={event => setProductQuery(event.target.value)} />
