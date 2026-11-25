@@ -1,0 +1,29 @@
+{
+  "name": "boshqa",
+  "version": "1.0.0",
+  "description": "BOSHQA-biznesingizni zamonaviy yol bilan boshqaring",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/X-jamoasi/BOSHQA.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/X-jamoasi/BOSHQA/issues"
+  },
+  "homepage": "https://github.com/X-jamoasi/BOSHQA#readme",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}
