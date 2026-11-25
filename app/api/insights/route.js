@@ -25,12 +25,14 @@ export async function POST(request) {
   if (error) return Response.json({ error: 'Ombor ma’lumotlarini olib bo‘lmadi.' }, { status: 502 });
   if (!products.length) return Response.json({ text: 'Omborda mahsulot yo‘q.' });
 
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    const low = products.filter(item => item.stock <= item.minimum);
-    const result = low.length ? low.map(item => item.name + ' (' + item.stock + ' dona)').join(', ') : 'Kam qolgan mahsulot yo‘q.';
-    return Response.json({ source: 'rules', text: 'Gemini kaliti serverda sozlanmagan. Qoldiq natijasi: ' + result });
-  }
+  const low = products.filter(item => item.stock <= item.minimum);
+  const stockSummary = low.length
+    ? low.map(item => item.name + ' (' + item.stock + ' dona, minimum ' + item.minimum + ')').join('; ')
+    : 'Kam qolgan mahsulot yo‘q.';
+  const fallback = reason => Response.json({ source: 'rules', text: reason + '\n\n' + stockSummary });
+
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key) return fallback('Vercel Production muhitida GEMINI_API_KEY topilmadi.');
 
   const { data: allowed, error: limitError } = await db.rpc('allow_inventory_analysis', { p_company: company });
   if (limitError) return Response.json({ error: 'Tahlilni boshlashning imkoni bo‘lmadi.' }, { status: 502 });
@@ -62,17 +64,31 @@ export async function POST(request) {
         if (alternate) response = await generate(alternate.name.slice('models/'.length));
       }
     }
-    if (response.status === 429) return Response.json({ error: 'Gemini so‘rov limiti tugagan. Keyinroq urinib ko‘ring.' }, { status: 429 });
-    if ([401, 403].includes(response.status)) {
-      return Response.json({ error: 'Gemini kaliti yoki Google AI Studio loyiha ruxsatini tekshiring.' }, { status: 502 });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const code = result?.error?.status;
+      const details = Array.isArray(result?.error?.details) ? result.error.details : [];
+      const keyRejected = details.some(item => ['API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED'].includes(item.reason));
+      console.warn('Gemini request failed', response.status);
+      if (response.status === 429) return fallback('Google Gemini kvotasi tugagan. AI Studio’da loyiha limitini tekshiring.');
+      if (keyRejected || [401, 403].includes(response.status)) {
+        return fallback('Google Gemini kalitni yoki loyiha ruxsatini rad etdi. AI Studio’dagi kalitni tekshiring.');
+      }
+      if (response.status === 404) return fallback('Tanlangan Gemini modeli mavjud emas. AI Studio’dagi model nomini tekshiring.');
+      if (code === 'FAILED_PRECONDITION') return fallback('Google Gemini loyiha sozlamalari so‘rovga ruxsat bermadi. AI Studio’da loyiha va xizmat hududini tekshiring.');
+      return fallback('Google Gemini so‘rovni bajarmadi (HTTP ' + response.status + ').');
     }
-    if (response.ok) {
-      const result = await response.json();
-      const text = result.candidates?.[0]?.content?.parts?.map(part => part.text).join('').trim();
-      if (text) return Response.json({ source: 'gemini', text: products.length > 100 ? 'Qoldig‘i minimal miqdorga eng yaqin yoki undan eng past 100 ta mahsulot tahlil qilindi.\n' + text : text });
-    }
-  } catch {
-    // Return a readable status for network errors and timeouts.
+    const text = result?.candidates?.[0]?.content?.parts
+      ?.filter(part => !part.thought && typeof part.text === 'string')
+      .map(part => part.text).join('').trim();
+    if (text) return Response.json({
+      source: 'gemini',
+      text: products.length > 100 ? 'Qoldig‘i minimal miqdorga eng yaqin yoki undan eng past 100 ta mahsulot tahlil qilindi.\n' + text : text,
+    });
+    return fallback('Gemini javobida tahlil matni topilmadi.');
+  } catch (error) {
+    return fallback(error.name === 'TimeoutError'
+      ? 'Gemini belgilangan vaqtda javob bermadi.'
+      : 'Gemini xizmatiga ulanishda xato yuz berdi.');
   }
-  return Response.json({ error: 'Gemini tahlili hozir ishlamadi. Keyinroq qayta urinib ko‘ring.' }, { status: 502 });
 }

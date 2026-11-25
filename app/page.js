@@ -140,10 +140,19 @@ export default function Page() {
   return <Workspace key={session.user.id} session={session} />;
 }
 
+const sections = [
+  ['overview', 'Umumiy ko‘rinish', '▦'],
+  ['products', 'Mahsulotlar', '◈', ['owner', 'manager']],
+  ['staff', 'Xodimlar', '◎', ['owner']],
+  ['orders', 'Buyurtmalar', '≡'],
+  ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
+];
+
 function Workspace({ session }) {
   const [memberships, setMemberships] = useState([]);
   const [admin, setAdmin] = useState(false);
   const [selected, setSelected] = useState('');
+  const [view, setView] = useState('overview');
   const [notice, setNotice] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -165,20 +174,34 @@ function Workspace({ session }) {
   const member = memberships.find(item => item.company_id === selected);
   return <div className="shell">
     <aside>
-      <div className="brand">BOSHQA<span>.</span></div>
-      <p className="demo">{session.user.app_metadata.login || session.user.email}</p>
-      <nav aria-label="Korxonalar">
-        {memberships.map(item => <button key={item.company_id} aria-pressed={selected === item.company_id}
-          onClick={() => setSelected(item.company_id)}>{item.companies.name}</button>)}
-        {admin && <button aria-pressed={selected === 'platform'} onClick={() => setSelected('platform')}>Platforma</button>}
-        <button onClick={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}>Chiqish</button>
+      <div className="brand"><span aria-hidden="true">B</span> BOSHQA</div>
+      {memberships.length > 1 && <label>Korxona
+        <select value={selected} onChange={event => { setSelected(event.target.value); setView('overview'); }}>
+          {memberships.map(item => <option key={item.company_id} value={item.company_id}>{item.companies.name}</option>)}
+        </select>
+      </label>}
+      <nav aria-label="Boshqaruv bo‘limlari">
+        {member && sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)).map(([id, name, icon]) =>
+          <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
+            <span aria-hidden="true">{icon}</span>{name}
+          </button>
+        )}
+        {admin && <button aria-current="page"><span aria-hidden="true">▦</span>Platforma</button>}
       </nav>
+      <button className="signout" onClick={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}>Hisobdan chiqish</button>
     </aside>
     <main>
+      <div className="topbar">
+        <div><strong>{member?.companies.name || 'BOSHQA'}</strong>{member?.companies.sector && <small>{member.companies.sector}</small>}</div>
+        <div className="topbar-actions">
+          {member && ['owner','manager'].includes(member.role) && <button className="action" onClick={() => setView('ai')}>✦ Gemini</button>}
+          <div className="account"><strong>{session.user.app_metadata.login || session.user.email}</strong><small>{admin ? 'Super admin' : roles[member?.role]}</small></div>
+        </div>
+      </div>
       {notice && <p role="status">{notice}</p>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
       {selected === 'platform' && admin && <Platform />}
-      {member && <Company key={member.company_id} member={member} token={session.access_token} />}
+      {member && <Company key={member.company_id} member={member} token={session.access_token} view={view} />}
       {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
     </main>
   </div>;
@@ -209,7 +232,7 @@ function SupplierSelect({ suppliers }) {
   </label>;
 }
 
-function Company({ member, token }) {
+function Company({ member, token, view }) {
   const id = member.company_id;
   const role = member.role;
   const manages = role === 'owner' || role === 'manager';
@@ -278,9 +301,13 @@ function Company({ member, token }) {
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
   const { products, orders, suppliers } = snapshot;
   return <>
-    <header><p className="company">{member.companies.name}</p>{member.companies.sector && <p>{member.companies.sector}</p>}<h1>{roles[role]}</h1><button className="action" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button></header>
+    <header className="page-header">
+      <h1>{sections.find(item => item[0] === view)[1]}</h1>
+      <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
+    </header>
     {notice && <p role="status">{notice}</p>}
-    {role === 'owner' && <section>
+    {view === 'overview' && <Overview products={products} orders={orders} manages={manages} />}
+    {view === 'staff' && role === 'owner' && <section>
       <h2>Xodim yoki hamkor hisobi</h2>
       <Form label="Hisob yaratish" onSubmit={async fields => {
         setNotice('');
@@ -307,16 +334,12 @@ function Company({ member, token }) {
         <button type="button" onClick={() => setNewStaff(null)}>Yopish</button>
       </div>}
     </section>}
-    {manages && <section>
-      <div className="section-title"><h2>Ombor</h2><button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'Gemini bilan tahlil'}</button></div>
+    {view === 'products' && manages && <section>
+      <h2>Ombor qoldig‘i</h2>
       <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimal miqdor</th></tr></thead>
         <tbody>{products.map(item => <tr key={item.id}><td>{item.name}</td><td className={item.stock <= item.minimum ? 'low' : ''}>{item.stock}</td><td>{item.minimum}</td></tr>)}</tbody>
       </table></div>
-      {insight && <div className="insight" role="status">
-        {insight.source && <strong>{insight.source === 'gemini' ? 'Gemini tahlili' : 'Qoidaga asoslangan tekshiruv'}</strong>}
-        <p>{insight.text}</p>
-      </div>}
       <h3>Mahsulot qo‘shish</h3>
       <Form label="Saqlash" onSubmit={fields => change('add_product', {
         p_company: id, p_name: fields.get('name'), p_stock: Number(fields.get('stock')), p_minimum: Number(fields.get('minimum')),
@@ -326,7 +349,16 @@ function Company({ member, token }) {
         <label>Minimal qoldiq<input name="minimum" type="number" min="0" max="2147483647" defaultValue="0" required /></label>
       </Form>
     </section>}
-    {(manages || role === 'customer') && <section>
+    {view === 'ai' && manages && <section>
+      <h2>Ombor bo‘yicha Gemini tahlili</h2>
+      <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>
+      <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'Gemini bilan tahlil'}</button>
+      {insight && <div className="insight" role="status">
+        {insight.source && <strong>{insight.source === 'gemini' ? 'Gemini tahlili' : 'Qoidaga asoslangan tekshiruv'}</strong>}
+        <p>{insight.text}</p>
+      </div>}
+    </section>}
+    {view === 'orders' && (manages || role === 'customer') && <section>
       <h2>{manages ? 'Xomashyo buyurtmasi' : 'Yangi buyurtma'}</h2>
       {!products.length || (manages && !suppliers.length) ? <p>{manages ? 'Avval mahsulot va ta’minotchi qo‘shing.' : 'Katalogda mahsulot yo‘q.'}</p> :
         <Form label="Buyurtma berish" onSubmit={fields => change('create_order', {
@@ -339,8 +371,8 @@ function Company({ member, token }) {
           {manages && <SupplierSelect suppliers={suppliers} />}
         </Form>}
     </section>}
-    <section>
-      <h2>Buyurtmalar</h2>
+    {view === 'orders' && <section>
+      <h2>Buyurtmalar ro‘yxati</h2>
       {orders.length ? <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Manzil</th><th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
         <tbody>{orders.map(order => <tr key={order.id}>
@@ -351,7 +383,38 @@ function Company({ member, token }) {
           </td>}
         </tr>)}</tbody>
       </table></div> : <p>Buyurtmalar hali yo‘q.</p>}
-    </section>
+    </section>}
+  </>;
+}
+
+function Overview({ products, orders, manages }) {
+  const low = manages ? products.filter(item => item.stock <= item.minimum).length : 0;
+  const counts = Object.keys(statuses).map(status => [status, orders.filter(order => order.status === status).length]);
+  const delivered = counts.find(([status]) => status === 'delivered')[1];
+  const available = products.length - low;
+  const proportion = products.length ? available / products.length * 100 : 0;
+  return <>
+    <div className="metrics">
+      <div><span>Mahsulot turlari</span><strong>{products.length}</strong></div>
+      <div><span>Buyurtmalar</span><strong>{orders.length}</strong></div>
+      <div><span>Topshirilgan</span><strong>{delivered}</strong></div>
+      {manages && <div><span>Minimal qoldiqda</span><strong>{low}</strong></div>}
+    </div>
+    <div className={manages ? 'charts' : undefined}>
+      {manages && <section>
+        <h2>Ombor holati</h2>
+        <div className="stock-chart">
+          <div className="ring" style={{ '--proportion': proportion + '%' }} aria-hidden="true"><strong>{products.length}</strong></div>
+          <div><p><i className="marker" /> Yetarli qoldiq · {available}</p><p><i className="marker warning" /> Minimal yoki undan past · {low}</p></div>
+        </div>
+      </section>}
+      <section>
+        <h2>Buyurtmalar holati</h2>
+        <div className="bars">{counts.map(([status, count]) => <div key={status}>
+          <span>{statuses[status]}</span><progress value={count} max={orders.length || 1} aria-label={statuses[status]} /><strong>{count}</strong>
+        </div>)}</div>
+      </section>
+    </div>
   </>;
 }
 
