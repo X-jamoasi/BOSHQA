@@ -182,9 +182,19 @@ function Workspace({ session }) {
   async function load() {
     const adminStatus = await read(db.rpc('is_platform_admin'));
     if (typeof adminStatus !== 'boolean') throw new Error('Hisob roli tekshirilmadi. Sahifani yangilang.');
-    const members = adminStatus ? [] : await read(
+    const listMemberships = () => read(
       db.from('company_members').select('company_id, role, companies(name, sector, contact)').eq('user_id', session.user.id)
     );
+    let members = adminStatus ? [] : await listMemberships();
+    if (!adminStatus && !members.length && session.user.app_metadata.boshqa_kind === 'company') {
+      const { data: companyId, error } = await db.rpc('ensure_own_company_membership');
+      if (error) {
+        throw new Error(error.code === 'PGRST202'
+          ? 'Korxonani biriktirish uchun yangi Supabase migratsiyasi kerak.'
+          : 'Korxonani tiklab bo‘lmadi. Qayta tekshiring yoki platforma egasiga murojaat qiling.');
+      }
+      if (companyId) members = await listMemberships();
+    }
     setMemberships(members);
     setAdmin(adminStatus);
     setSelected(adminStatus ? 'platform' : members[0]?.company_id || '');
@@ -194,6 +204,11 @@ function Workspace({ session }) {
   useEffect(() => {
     load().catch(error => setNotice(error.message));
   }, []);
+
+  function retryWorkspace() {
+    setNotice('');
+    load().catch(error => setNotice(error.message));
+  }
 
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   const roleLinks = admin ? platformSections : member ? sections.filter(([id, , , allowed]) => id !== 'add-product' && (!allowed || allowed.includes(member.role))) : [];
@@ -208,7 +223,9 @@ function Workspace({ session }) {
     openAI={hasPanel ? () => setAiSignal(value => value + 1) : undefined}
     assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} standalone={view === 'assistant'}
       company={member?.company_id || null} token={session.access_token} role={member?.role} />}>
-      {notice && <p role="status">{notice}</p>}
+      {notice && <div role="status"><p>{notice}</p>
+        {!loaded && <button type="button" className="secondary" onClick={retryWorkspace}>Qayta tekshirish</button>}
+      </div>}
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
       {loaded && view === 'profile' && <Profile key={member?.company_id || 'account'} db={db} session={session}
         member={member} title={profileTitle} accountAction={accountAction}
