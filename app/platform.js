@@ -63,9 +63,9 @@ export default function Platform({ db, view }) {
     {view === 'overview' && data && <>
       <Metrics values={[
         ['Korxonalar', data.companies.length], ['Yangi korxonalar · 30 kun', data.recent_companies],
-        ['Buyurtmalar', data.orders], ['Gemini tahlillari · 30 kun', ai.success],
+        ['Buyurtmalar', data.orders], ['AI xulosalari · 30 kun', ai.success],
       ]} />
-      <section><h2>Gemini holati · oxirgi 30 kun</h2>
+      <section><h2>AI hisoboti · oxirgi 30 kun</h2>
         <div className="bars">{Object.entries(outcomes).map(([key, label]) => <div key={key}>
           <span>{label}</span><progress value={ai[key]} max={Math.max(1, ai.success + ai.error + ai.unconfigured)} aria-label={label} /><strong>{ai[key]}</strong>
         </div>)}</div>
@@ -92,9 +92,9 @@ export default function Platform({ db, view }) {
         {data.ai_events.length ? <div className="table"><table>
           <thead><tr><th>Vaqt</th><th>Model</th><th>Natija</th><th>Sabab</th></tr></thead>
           <tbody>{data.ai_events.map(item => <tr key={item.id}>
-            <td>{formatDate(item.happened_at)}</td><td>{item.model || '—'}</td><td>{outcomes[item.outcome]}</td><td>{item.reason || '—'}</td>
+            <td>{formatDate(item.happened_at)}</td><td>{item.model?.replace(/^gemini-/i, '') || '—'}</td><td>{outcomes[item.outcome]}</td><td>{item.reason?.replace(/(?:Google )?Gemini/gi, 'AI xizmati') || '—'}</td>
           </tr>)}</tbody>
-        </table></div> : <p>Gemini natijalari hali qayd etilmagan.</p>}
+        </table></div> : <p>AI natijalari hali qayd etilmagan.</p>}
       </section>
     </>}
     {view === 'activity' && data && <section><h2>So‘nggi 25 voqea</h2>

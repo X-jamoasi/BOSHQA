@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
+import AiChat from './ai-chat';
 import { makeSupabase } from '../lib/supabase';
 import { loginEmail, sectors } from '../lib/accounts';
 
@@ -201,7 +202,7 @@ function Workspace({ session }) {
       <div className="topbar">
         <div><strong>{member?.companies.name || 'BOSHQA'}</strong>{member?.companies.sector && <small>{member.companies.sector}</small>}</div>
         <div className="topbar-actions">
-          {member && ['owner','manager'].includes(member.role) && <button className="action" onClick={() => setView('ai')}>✦ Gemini</button>}
+          {member && ['owner','manager'].includes(member.role) && <button className="action" onClick={() => setView('ai')}>✦ AI xulosasi</button>}
           <div className="account"><strong>{session.user.app_metadata.login || session.user.email}</strong><small>{admin ? 'Super admin' : roles[member?.role]}</small></div>
         </div>
       </div>
@@ -211,6 +212,8 @@ function Workspace({ session }) {
       {member && <Company key={member.company_id} member={member} token={session.access_token} view={view} />}
       {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
     </main>
+    {(member || (loaded && admin)) && <AiChat key={member?.company_id || 'platform'}
+      company={member?.company_id || null} token={session.access_token} />}
   </div>;
 }
 
@@ -281,7 +284,7 @@ function Company({ member, token, view }) {
         body: JSON.stringify({ company: id }),
       });
       const result = await response.json();
-      setInsight({ text: result.text ?? result.error, source: result.source, model: result.model });
+      setInsight({ text: result.text ?? result.error, source: result.source });
     } catch {
       setInsight({ text: 'Tahlil xizmatiga ulanib bo‘lmadi.' });
     } finally {
@@ -349,12 +352,11 @@ function Company({ member, token, view }) {
       </Form>
     </section>}
     {view === 'ai' && manages && <section>
-      <h2>Ombor bo‘yicha Gemini tahlili</h2>
+      <h2>Ombor bo‘yicha AI tavsiyasi</h2>
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>
-      <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'Gemini bilan tahlil'}</button>
+      <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'AI xulosasini olish'}</button>
       {insight && <div className="insight" role="status">
-        {insight.source && <strong>{insight.source === 'gemini' ? 'Gemini tahlili' : 'Qoidaga asoslangan tekshiruv'}</strong>}
-        {insight.model && <p>Model {insight.model}</p>}
+        {insight.source && <strong>{insight.source === 'ai' ? 'AI xulosasi' : 'Qoidaga asoslangan tekshiruv'}</strong>}
         <p>{insight.text}</p>
       </div>}
     </section>}
