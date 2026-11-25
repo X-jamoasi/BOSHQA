@@ -51,5 +51,12 @@ export async function POST(request) {
     })),
   });
   if (result.error) return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
-  return Response.json({ text: result.text.slice(0, 3500) });
+  const question = messages.at(-1).text.normalize('NFKC').toLowerCase();
+  const asksModel = /qaysi|qanaqa|qanday|nima/.test(question) &&
+    /model|integratsiya|sun.?iy intellekt|gemini|claude|openai|chatgpt|\bai\b/.test(question) &&
+    /model|integratsiya|ishlaysan|san\b|gemini|claude|openai|chatgpt/.test(question);
+  const text = asksModel
+    ? 'Men BOSHQA yordamchisiman. Bu suhbat Google Gemini orqali ishlaydi. Javob bergan model — ' + result.model + '.'
+    : result.text;
+  return Response.json({ text: text.slice(0, 3500) });
 }
