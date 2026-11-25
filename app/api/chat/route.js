@@ -48,6 +48,6 @@ export async function POST(request) {
       role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.text }],
     })),
   });
-  if (result.error) return failure(result.error, result.unconfigured ? 503 : 502);
+  if (result.error) return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
   return Response.json({ text: result.text.slice(0, 3500) });
 }
