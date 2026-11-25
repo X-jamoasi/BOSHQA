@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function AiChat({ company, token, openSignal, standalone }) {
+export default function AiChat({ company, token, openSignal, standalone, role }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
@@ -77,7 +77,7 @@ export default function AiChat({ company, token, openSignal, standalone }) {
         {!messages.length && <>
           <p>BOSHQA’dan foydalanish haqida savol yuboring.</p>
           <div className="prompt-list">{(company
-            ? ['Buyurtmani qanday kuzataman?', 'BOSHQA’da qanday yordam ola olaman?']
+            ? ['Buyurtmani qanday kuzataman?', ['owner', 'manager'].includes(role) ? 'Qaysi mahsulot kam qoldi?' : 'BOSHQA’da qanday yordam ola olaman?']
             : ['Platforma ko‘rsatkichlarini qanday kuzataman?', 'AI monitoring nima ko‘rsatadi?']
           ).map(prompt => <button type="button" key={prompt} className="secondary" disabled={busy}
             onClick={() => { setQuestion(prompt); input.current?.focus(); }}>{prompt}</button>)}</div>

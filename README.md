@@ -32,4 +32,4 @@ Korxona ma’lumotlari alohida bo‘limda ko‘rsatiladi.
 
 Super admin boshqaruv paneli va Gemini monitoringini yoqish uchun [platforma migratsiyasini](supabase/migrations/202611250004_platform_dashboard.sql) 003-migratsiyadan keyin bajaring. Monitoring faqat yangi tahlil natijalarini qayd etadi. Daromad bo‘limi to‘lov tizimi ulangach ma’lumot ko‘rsatadi.
 
-Paneldagi AI yordamchini yoqish uchun [AI chat migratsiyasini](supabase/migrations/202611250005_ai_chat.sql) bajaring. Chat o‘zbek tilida javob beradi. Chatga savol va shu oynadagi yaqin suhbat yuboriladi, korxona bazasi chat uchun uzatilmaydi.
+Paneldagi AI yordamchini yoqish uchun [AI chat migratsiyasini](supabase/migrations/202611250005_ai_chat.sql) bajaring. Chat o‘zbek tilida javob beradi. Chatga savol, shu oynadagi yaqin suhbat va mavzu uchun kerakli, foydalanuvchiga ruxsat etilgan qisqa ma’lumot yuboriladi. Buyurtma manzili va xodimlarning aloqa ma’lumotlari yuborilmaydi. Chat bazadagi ma’lumotlarni o‘zgartira olmaydi.
