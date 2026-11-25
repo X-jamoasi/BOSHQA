@@ -76,11 +76,16 @@ export async function POST(request) {
     password = randomBytes(18).toString('base64url') + 'aA7!';
   }
 
-  const { error } = await service.auth.admin.createUser({
+  const { data, error } = await service.auth.admin.createUser({
     email: loginEmail(login), password, email_confirm: true, app_metadata: { ...metadata, login },
   });
   if (error?.code === 'email_exists' || error?.code === 'user_already_exists') return failure('Bu login band.', 409);
   if (error) return failure('Hisob yaratilmadi. Korxona sozlamalari va migratsiyani tekshiring.', 502);
+  const { data: membership, error: membershipError } = await service.from('company_members')
+    .select('company_id').eq('user_id', data.user.id).maybeSingle();
+  if (membershipError || !membership) {
+    return failure('Hisob yaratildi, lekin korxona biriktirilmadi. Platforma egasiga murojaat qiling.', 502);
+  }
   return Response.json(action === 'staff' ? { login, password } : { ok: true }, {
     status: 201, headers: { 'Cache-Control': 'no-store' },
   });

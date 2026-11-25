@@ -148,13 +148,13 @@ function Workspace({ session }) {
   const [loaded, setLoaded] = useState(false);
 
   async function load() {
-    const [members, adminStatus] = await Promise.all([
-      read(db.from('company_members').select('company_id, role, companies(name, sector)').eq('user_id', session.user.id)),
-      read(db.rpc('is_platform_admin')),
-    ]);
+    const adminStatus = await read(db.rpc('is_platform_admin'));
+    const members = adminStatus ? [] : await read(
+      db.from('company_members').select('company_id, role, companies(name, sector)').eq('user_id', session.user.id)
+    );
     setMemberships(members);
     setAdmin(adminStatus);
-    setSelected(current => current || members[0]?.company_id || (adminStatus ? 'platform' : ''));
+    setSelected(adminStatus ? 'platform' : members[0]?.company_id || '');
     setLoaded(true);
   }
 
@@ -179,7 +179,7 @@ function Workspace({ session }) {
       {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
       {selected === 'platform' && admin && <Platform />}
       {member && <Company key={member.company_id} member={member} token={session.access_token} />}
-      {loaded && !selected && <p>Hisobingizga korxona biriktirilmagan.</p>}
+      {loaded && !selected && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
     </main>
   </div>;
 }
@@ -215,7 +215,7 @@ function Company({ member, token }) {
   const manages = role === 'owner' || role === 'manager';
   const [snapshot, setSnapshot] = useState(null);
   const [notice, setNotice] = useState('');
-  const [insight, setInsight] = useState('');
+  const [insight, setInsight] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [changing, setChanging] = useState(false);
   const [newStaff, setNewStaff] = useState(null);
@@ -245,7 +245,7 @@ function Company({ member, token }) {
       setChanging(false);
       return false;
     }
-    setInsight('');
+    setInsight(null);
     try {
       await load();
       setNotice('Saqlandi.');
@@ -259,7 +259,7 @@ function Company({ member, token }) {
 
   async function analyze() {
     setAnalyzing(true);
-    setInsight('');
+    setInsight(null);
     try {
       const response = await fetch('/api/insights', {
         method: 'POST',
@@ -267,9 +267,9 @@ function Company({ member, token }) {
         body: JSON.stringify({ company: id }),
       });
       const result = await response.json();
-      setInsight(result.text ?? result.error);
+      setInsight({ text: result.text ?? result.error, source: result.source });
     } catch {
-      setInsight('Tahlil xizmatiga ulanib bo‘lmadi.');
+      setInsight({ text: 'Tahlil xizmatiga ulanib bo‘lmadi.' });
     } finally {
       setAnalyzing(false);
     }
@@ -308,12 +308,15 @@ function Company({ member, token }) {
       </div>}
     </section>}
     {manages && <section>
-      <div className="section-title"><h2>Ombor</h2><button className="action" disabled={analyzing || !products.length} onClick={analyze}>Qoldiqni tahlil qilish</button></div>
+      <div className="section-title"><h2>Ombor</h2><button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'Gemini bilan tahlil'}</button></div>
       <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimal miqdor</th></tr></thead>
         <tbody>{products.map(item => <tr key={item.id}><td>{item.name}</td><td className={item.stock <= item.minimum ? 'low' : ''}>{item.stock}</td><td>{item.minimum}</td></tr>)}</tbody>
       </table></div>
-      {insight && <p className="insight" role="status">{insight}</p>}
+      {insight && <div className="insight" role="status">
+        {insight.source && <strong>{insight.source === 'gemini' ? 'Gemini tahlili' : 'Qoidaga asoslangan tekshiruv'}</strong>}
+        <p>{insight.text}</p>
+      </div>}
       <h3>Mahsulot qo‘shish</h3>
       <Form label="Saqlash" onSubmit={fields => change('add_product', {
         p_company: id, p_name: fields.get('name'), p_stock: Number(fields.get('stock')), p_minimum: Number(fields.get('minimum')),
