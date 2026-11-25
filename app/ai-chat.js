@@ -52,7 +52,7 @@ export default function AiChat({ company, token }) {
         setError(result.error || 'Javobni olib bo‘lmadi. Qayta urinib ko‘ring.');
         return;
       }
-      setMessages([...next.slice(-9), { role: 'assistant', text: result.text }]);
+      setMessages([...next.slice(-9), { role: 'assistant', text: result.text, source: result.source }]);
       setQuestion('');
     } catch {
       setError('AI yordamchi bilan aloqa uzildi. Qayta urinib ko‘ring.');
@@ -69,8 +69,8 @@ export default function AiChat({ company, token }) {
       </div>
       <div className="ai-thread" role="log" aria-live="polite">
         {!messages.length && <p>BOSHQA’dan foydalanish yoki ombor, xodim va buyurtmalar haqida savol bering.</p>}
-        {messages.map(({ role, text }, index) => <div key={index} className={'ai-message ' + role}>
-          <strong>{role === 'user' ? 'Siz' : 'AI yordamchi'}</strong>
+        {messages.map(({ role, text, source }, index) => <div key={index} className={'ai-message ' + role}>
+          <strong>{role === 'user' ? 'Siz' : source === 'guide' ? 'BOSHQA yo‘riqnomasi' : 'AI yordamchi'}</strong>
           <p>{text}</p>
         </div>)}
         {busy && <p role="status">AI javob tayyorlamoqda…</p>}

@@ -1,3 +1,4 @@
+import { findChatHelp } from '../../../lib/chat-help';
 import { generateAi } from '../../../lib/ai-provider';
 import { makeSupabase } from '../../../lib/supabase';
 
@@ -48,6 +49,10 @@ export async function POST(request) {
       role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.text }],
     })),
   });
-  if (result.error) return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
-  return Response.json({ text: result.text.slice(0, 3500) });
+  if (result.error) {
+    const help = findChatHelp(messages.at(-1).text, role);
+    if (help) return Response.json({ source: 'guide', text: help });
+    return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
+  }
+  return Response.json({ source: 'ai', text: result.text.slice(0, 3500) });
 }
