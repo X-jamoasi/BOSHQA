@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Building2, ClipboardList, Sparkles, TrendingUp } from 'lucide-react';
-import { DateWindow, Metrics, StatusBadge, Trend, formatDashboardDate } from './dashboard-ui';
+import { DateWindow, Metrics, PanelState, StatusBadge, Trend, formatDashboardDate } from './dashboard-ui';
 
 export const platformSections = [
   ['overview', 'Platforma umumiy ko‘rinishi', '▦'],
@@ -54,10 +54,10 @@ export default function Platform({ db, view }) {
       {view !== 'revenue' && <button className="secondary" disabled={loading} onClick={load}>Yangilash</button>}
     </header>
     {view === 'revenue' && <section><h2>Obunalar va to‘lovlar</h2>
-      <p>BOSHQA’ga to‘lov tizimi hali ulanmagan. Ulangach, shu yerda platforma daromadi va faol obunalar ko‘rinadi.</p>
+      <PanelState>BOSHQA’ga to‘lov tizimi hali ulanmagan.</PanelState>
     </section>}
-    {view !== 'revenue' && error && <p role="alert">{error}</p>}
-    {view !== 'revenue' && !data && !error && <p role="status">Platforma ma’lumotlari yuklanmoqda…</p>}
+    {view !== 'revenue' && error && <PanelState kind="error">{error}</PanelState>}
+    {view !== 'revenue' && !data && !error && <PanelState kind="loading">Platforma ma’lumotlari yuklanmoqda…</PanelState>}
     {view === 'overview' && data && <>
       <Metrics values={[
         ['Jami korxonalar', data.companies.length, Building2], ['Yangi korxonalar', data.recent_companies, TrendingUp, 'So‘nggi 30 kun'],
@@ -85,6 +85,7 @@ export default function Platform({ db, view }) {
       </div>
     </>}
     {view === 'companies' && data && <section>
+      <div className="panel-heading"><h2>Korxonalar ro‘yxati <small className="result-count">{companies.length}</small></h2></div>
       <div className="platform-filters">
         <label>Korxona qidirish<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
         <label>Yo‘nalish<select value={sector} onChange={event => setSector(event.target.value)}>
@@ -94,7 +95,7 @@ export default function Platform({ db, view }) {
       {companies.length ? <div className="table"><table>
         <thead><tr><th>Korxona</th><th>Faoliyat yo‘nalishi</th><th>Ro‘yxatdan o‘tgan sana</th></tr></thead>
         <tbody>{companies.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.sector || 'Kiritilmagan'}</td><td>{formatDashboardDate(item.registered_at)}</td></tr>)}</tbody>
-      </table></div> : <p>Korxona topilmadi.</p>}
+      </table></div> : <PanelState>Korxona topilmadi.</PanelState>}
     </section>}
     {view === 'monitoring' && data && <>
       <Metrics values={[
@@ -105,16 +106,16 @@ export default function Platform({ db, view }) {
         {data.ai_events.length ? <div className="table"><table>
           <thead><tr><th>Vaqt</th><th>Model</th><th>Natija</th><th>Sabab</th></tr></thead>
           <tbody>{data.ai_events.map(item => <tr key={item.id}>
-            <td>{formatDashboardDate(item.happened_at)}</td><td>{item.model?.replace(/^gemini-/i, '') || '—'}</td><td>{outcomes[item.outcome]}</td><td>{item.reason?.replace(/(?:Google )?Gemini/gi, 'AI xizmati') || '—'}</td>
+            <td>{formatDashboardDate(item.happened_at)}</td><td>{item.model?.replace(/^gemini-/i, '') || '—'}</td><td><StatusBadge status={item.outcome}>{outcomes[item.outcome]}</StatusBadge></td><td>{item.reason?.replace(/(?:Google )?Gemini/gi, 'AI xizmati') || '—'}</td>
           </tr>)}</tbody>
-        </table></div> : <p>AI natijalari hali qayd etilmagan.</p>}
+        </table></div> : <PanelState>AI natijalari hali qayd etilmagan.</PanelState>}
       </section>
     </>}
     {view === 'activity' && data && <section><h2>So‘nggi 25 voqea</h2>
       {data.activity.length ? <div className="table"><table>
         <thead><tr><th>Vaqt</th><th>Voqea</th></tr></thead>
         <tbody>{data.activity.map(item => <tr key={item.id}><td>{formatDashboardDate(item.happened_at)}</td><td>{item.description}</td></tr>)}</tbody>
-      </table></div> : <p>Hozircha yangi voqealar yo‘q.</p>}
+      </table></div> : <PanelState>Hozircha yangi voqealar yo‘q.</PanelState>}
     </section>}
   </>;
 }

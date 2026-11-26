@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatDashboardDate } from './dashboard-ui';
+import { formatDashboardDate, PanelState } from './dashboard-ui';
 
 function useAreas(db) {
   const [areas, setAreas] = useState([]);
@@ -106,7 +106,7 @@ export default function StoreOffers({ db, company = null }) {
       {areas.length > 0 && <>
         <div className="profile-fields"><AreaFields areas={areas} region={region} setRegion={value => { setRegion(value); setRecipient(''); }}
           area={area} setArea={value => { setArea(value); setRecipient(''); }} optional/></div>
-        {region && (directory.key !== key ? <p role="status">Do‘konlar yuklanmoqda…</p> :
+        {region && (directory.key !== key ? <PanelState kind="loading">Do‘konlar yuklanmoqda…</PanelState> :
           directory.error ? <p role="alert">{directory.error}</p> : stores.length ? <form className="offer-form" onSubmit={event =>
             submit(event, 'send_store_offer', text => ({ p_company: company, p_store: recipient, p_message: text }), 'Taklif yuborildi.')}>
             <label>Do‘kon<select value={recipient} onChange={event => setRecipient(event.target.value)} required>
@@ -122,8 +122,8 @@ export default function StoreOffers({ db, company = null }) {
     <section>
       <h2>{company ? 'Yuborilgan takliflar' : 'Kelgan takliflar'}</h2>
       {error && <p role="alert">{error}</p>}
-      {!offers && !error && <p role="status">Takliflar yuklanmoqda…</p>}
-      {offers?.length === 0 && <p>Takliflar hali yo‘q.</p>}
+      {!offers && !error && <PanelState kind="loading">Takliflar yuklanmoqda…</PanelState>}
+      {offers?.length === 0 && <PanelState>Takliflar hali yo‘q.</PanelState>}
       {offers?.map(offer => <article className="offer-item" key={offer.id}>
         <h3>{company ? offer.store_name : offer.company_name}</h3>
         <small>{formatDashboardDate(offer.created_at, true)}</small>

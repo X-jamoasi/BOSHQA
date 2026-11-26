@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Banknote, ClipboardList, Percent, TriangleAlert, WalletCards } from 'lucide-react';
 import { accountLogin } from '../lib/accounts';
 import AiChat from './ai-chat';
-import { DashboardShell, Metrics, StatusBadge, formatDashboardDate } from './dashboard-ui';
+import { DashboardShell, Metrics, PanelState, StatusBadge, formatDashboardDate } from './dashboard-ui';
 import { MapChoices, formatMoney } from './sales';
 import StoreOffers, { StoreAreaFields } from './store-offers';
 import TelegramPanel from './telegram-panel';
@@ -92,7 +92,7 @@ export default function StoreWorkspace({ db, session }) {
     company={profile} companies={[]} signOut={()=>db.auth.signOut()} openAI={data?()=>setAiSignal(value=>value+1):undefined}
     assistant={data&&<AiChat company={null} role="store" token={session.access_token} home={view==='overview'} openSignal={aiSignal} />}>
     {notice&&<p role="status">{notice}</p>}
-    {!data&&(notice?<button className="secondary" onClick={initialize}>Qayta tekshirish</button>:<p role="status">Do‘kon yuklanmoqda…</p>)}
+    {!data&&(notice?<button className="secondary" onClick={initialize}>Qayta tekshirish</button>:<PanelState kind="loading">Do‘kon yuklanmoqda…</PanelState>)}
     {data&&<header className="page-header"><h1>{links.find(([id])=>id===view)[1]}</h1></header>}
     {data&&view==='overview'&&<>
       <Metrics values={[
@@ -130,7 +130,7 @@ export default function StoreWorkspace({ db, session }) {
             {order.decision&&<p>{decisionText[order.decision]}{order.note?' · '+order.note:''}</p>}</td>
           <td>{order.expected_delivery_date||'—'}</td>
           <td>{order.status==='delivered'&&!order.decision&&<button className="secondary" onClick={()=>setSelected(order.id)}>Qabulni tekshirish</button>}</td>
-        </tr>)}</tbody></table></div>:<p>Bu holatda buyurtmalar yo‘q.</p>}
+        </tr>)}</tbody></table></div>:<PanelState>Bu holatda buyurtmalar yo‘q.</PanelState>}
       {current&&<form key={current.id} className="store-decision" onSubmit={event=>{
         event.preventDefault();
         const fields=new FormData(event.currentTarget);

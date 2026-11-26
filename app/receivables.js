@@ -1,5 +1,6 @@
 'use client';
 
+import { PanelState } from './dashboard-ui';
 import { useEffect, useRef, useState } from 'react';
 import { StatusBadge } from './dashboard-ui';
 import { formatMoney } from './sales';
@@ -66,7 +67,7 @@ export default function Receivables({ db, company, role, onUpdated, initialOrder
         </select>
       </div>
       {notice && <p role="status">{notice}</p>}
-      {!rows && !notice && <p role="status">To‘lovlar yuklanmoqda…</p>}
+      {!rows && !notice && <PanelState kind="loading">To‘lovlar yuklanmoqda…</PanelState>}
       {visible?.length ? <div className="table"><table>
         <thead><tr><th>Do‘kon</th><th>Jami summa</th><th>Tasdiqlangan to‘lov</th><th>Qolgan qarz</th><th>Oxirgi sana</th><th>Holat</th>{canReport&&<th>Amal</th>}</tr></thead>
         <tbody>{visible.map(row=>{

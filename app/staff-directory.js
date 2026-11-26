@@ -1,5 +1,6 @@
 'use client';
 
+import { PanelState } from './dashboard-ui';
 import { useEffect, useState } from 'react';
 import { formatDashboardDate, StatusBadge } from './dashboard-ui';
 
@@ -43,8 +44,8 @@ export default function StaffDirectory({ db, company, roles, statuses, revision,
           <button className="secondary" type="button" disabled={loading} onClick={load}>Ro‘yxatni yangilash</button>
         </div>
       </div>
-      {problem && <p role="alert">{problem}</p>}
-      {loading && !people && <p role="status">Xodimlar yuklanmoqda…</p>}
+      {problem && <PanelState kind="error">{problem}</PanelState>}
+      {loading && !people && <PanelState kind="loading">Xodimlar yuklanmoqda…</PanelState>}
       {filtered?.length ? <div className="table"><table>
         <thead><tr><th>Ism yoki login</th><th>Rol</th><th>Telefon</th><th>Hisob holati</th><th>Profil</th></tr></thead>
         <tbody>{filtered.map(item => <tr key={item.user_id}>
@@ -106,7 +107,7 @@ function StaffProfile({ db, company, person, roles, statuses, close, refresh }) 
     </dl>
     <h3>Korxonadagi buyurtmalar</h3>
     {orderError && <p role="alert">{orderError}</p>}
-    {!orders && !orderError && <p role="status">Buyurtmalar yuklanmoqda…</p>}
+    {!orders && !orderError && <PanelState kind="loading">Buyurtmalar yuklanmoqda…</PanelState>}
     {orders?.length ? <div className="table"><table>
       <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Ishtiroki</th><th>Holat</th><th>Sana</th></tr></thead>
       <tbody>{orders.slice(0, pageSize).map(order => <tr key={order.id}>

@@ -14,8 +14,8 @@ import SubscriptionPlans from './subscription-plans';
 import TelegramPanel from './telegram-panel';
 import Receivables from './receivables';
 import { AddProduct, Discounts, Shops, MapChoices, formatMoney } from './sales';
-import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3, ArrowUpRight, AudioLines } from 'lucide-react';
-import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
+import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3, ArrowUpRight, AudioLines, Sparkles } from 'lucide-react';
+import { DashboardShell, DateWindow, Metrics, PanelState, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
 import { accountLogin, loginEmail, sectors } from '../lib/accounts';
 
@@ -254,7 +254,7 @@ function Workspace({ session }) {
       {notice && <div role="status"><p>{notice}</p>
         {!loaded && <button type="button" className="secondary" onClick={retryWorkspace}>Qayta tekshirish</button>}
       </div>}
-      {!loaded && !notice && <p>Korxonalar yuklanmoqda…</p>}
+      {!loaded && !notice && <PanelState kind="loading">Korxonalar yuklanmoqda…</PanelState>}
       {loaded && view === 'profile' && <Profile key={member?.company_id || 'account'} db={db} session={session}
         member={member} title={profileTitle} accountAction={accountAction}
         onCompanySaved={(id, company) => setMemberships(items => items.map(item =>
@@ -282,6 +282,7 @@ function Company({ member, token, view, selectView }) {
   const [snapshot, setSnapshot] = useState(null);
   const [days, setDays] = useState(7);
   const [orderFilter, setOrderFilter] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
   const [notice, setNotice] = useState('');
   const [insight, setInsight] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -373,9 +374,12 @@ function Company({ member, token, view, selectView }) {
     }
   }
 
-  if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
+  if (!snapshot) return <PanelState kind={notice ? 'error' : 'loading'} action={notice && <button className="secondary" onClick={() => { setNotice(''); load().catch(error => setNotice(error.message)); }}>Qayta urinish</button>}>{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</PanelState>;
   const { products, orders, suppliers, shops, discounts } = snapshot;
-  const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
+  const productNames = new Map(products.map(item => [item.id, item.name]));
+  const query = orderSearch.trim().toLowerCase();
+  const visibleOrders = orders.filter(order => (!orderFilter || order.status === orderFilter) &&
+    (!query || [productNames.get(order.product_id), order.shop_name, order.delivery_address].some(value => value?.toLowerCase().includes(query))));
   const addingProduct = view === 'add-product' && manages;
   const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
   const productDrawerOpen = addingProduct || Boolean(editingProduct);
@@ -423,7 +427,7 @@ function Company({ member, token, view, selectView }) {
         <label>Rol<select name="role">{Object.entries(roles).filter(([key]) => key !== 'owner').map(([key, label]) =>
           <option key={key} value={key}>{label}</option>)}</select></label>
       </Form>
-      {newStaff && <div className="insight" role="status">
+      {newStaff && <div className="insight" role={insight.source === 'ai' ? 'status' : 'alert'}>
         <p>{newStaff.recovered ? 'Xodim hisobi tiklandi.' : 'Xodim hisobi yaratildi.'}</p>
         <p>Login <code>{newStaff.login}</code></p>
         <p>Vaqtinchalik parol <code>{newStaff.password}</code></p>
@@ -459,10 +463,10 @@ function Company({ member, token, view, selectView }) {
     {role === 'customer' && view === 'basket' && <Basket db={db} basket={basket} shops={shops} initialShop={orderShop} onSent={load} />}
     {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} editProduct={setEditingProductId} />}
     {view === 'ai' && manages && <section>
-      <h2>Ombor bo‘yicha AI tavsiyasi</h2>
+      <h2 className="icon-heading"><Sparkles size={18} aria-hidden="true" /> Ombor bo‘yicha AI tavsiyasi</h2>
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>
       <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'AI xulosasini olish'}</button>
-      {insight && <div className="insight" role="status">
+      {insight && <div className="insight" role={insight.source === 'ai' ? 'status' : 'alert'}>
         {insight.source === 'ai' && <strong>AI xulosasi</strong>}
         <p>{insight.text}</p>
       </div>}
@@ -481,11 +485,12 @@ function Company({ member, token, view, selectView }) {
         </Form>}
     </section>}
     {view === 'orders' && <section>
-      <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2>
+      <div className="panel-heading"><h2>Buyurtmalar ro‘yxati <small className="result-count">{visibleOrders.length}</small></h2>
+        <div className="table-filters"><input type="search" aria-label="Buyurtma qidirish" placeholder="Mahsulot yoki do‘kon" value={orderSearch} onChange={event => setOrderSearch(event.target.value)} />
         <select aria-label="Holat bo‘yicha filtrlash" value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
           <option value="">Barcha holatlar</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-      </div>
+      </div></div>
       {visibleOrders.length ? <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
         <tbody>{visibleOrders.map(order => <tr key={order.id}>
@@ -506,7 +511,7 @@ function Company({ member, token, view, selectView }) {
             }}>To‘lovni ko‘rish →</button>}
           </td>}
         </tr>)}</tbody>
-      </table></div> : <p>{orderFilter ? 'Bu holatdagi buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</p>}
+      </table></div> : <PanelState>{orderFilter || query ? 'Filtrga mos buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</PanelState>}
     </section>}
   </>;
 }
@@ -519,15 +524,28 @@ function Overview({ products, orders, manages, role, days, selectView }) {
   const inTransit = orders.filter(order => order.status === 'shipped').length;
   const recent = orders.slice(0, 5);
   const catalog = new Map(products.map(product => [product.id, product.name]));
+  const stock = ['Minimal qoldiqda', low.length, TriangleAlert, 'Ombor nazorati', 'warning'];
+  const open = ['Faol buyurtmalar', active, ClipboardList];
+  const complete = ['Topshirilgan', delivered, CircleCheck, null, 'success'];
+  const catalogMetric = ['Mahsulot turlari', products.length, Boxes];
+  const waiting = ['Tasdiq kutilmoqda', pending, Clock3, null, 'warning'];
+  const kpis = {
+    owner: [open, stock, complete, catalogMetric],
+    manager: [waiting, stock, ['Yo‘lda', inTransit, Truck], complete],
+    supplier: [['Yo‘lda', inTransit, Truck], complete, open, catalogMetric],
+    customer: [waiting, ['Yo‘lda', inTransit, Truck], complete, catalogMetric],
+  };
   return <>
-    <Metrics values={[
-      ['Faol buyurtmalar', active, ClipboardList],
-      ['Topshirilgan', delivered, CircleCheck],
-      ['Mahsulot turlari', products.length, Boxes],
-      manages ? ['Minimal qoldiqda', low.length, TriangleAlert] :
-        role === 'supplier' ? ['Yo‘lda', inTransit, Truck] : ['Kutilmoqda', pending, Clock3],
-    ]} />
+    <Metrics values={kpis[role]} />
     <div className={'dashboard-grid overview-' + role}>
+      {role === 'customer' && <section className="workspace-callout dashboard-wide">
+        <div><h2>Mahsulot katalogi</h2><p>Mahsulot tanlang va savat orqali do‘konga buyurtma yuboring.</p></div>
+        <button className="secondary" onClick={() => selectView('catalog')}>Katalogni ochish</button>
+      </section>}
+      {role === 'manager' && <section className="workspace-callout dashboard-wide">
+        <div><h2>Buyurtmalar navbati</h2><p>{formatCount(pending)} ta buyurtma tasdiq kutmoqda.</p></div>
+        <button className="secondary" onClick={() => selectView('orders')}>Buyurtmalarni ochish</button>
+      </section>}
       <section><h2>Buyurtmalar dinamikasi</h2>
         <Trend records={orders} dateKey="created_at" days={days} label="Kunlik buyurtmalar soni" />
       </section>
@@ -535,7 +553,7 @@ function Overview({ products, orders, manages, role, days, selectView }) {
         <div className="panel-heading"><h2>Kam qolgan mahsulotlar</h2><button className="text-button" onClick={() => selectView('products')}>Omborni ochish →</button></div>
         {low.length ? <div className="table"><table><thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>Minimum</th></tr></thead>
           <tbody>{low.slice(0, 5).map(item => <tr key={item.id}><td>{item.name}</td><td className="low">{formatCount(item.stock)}</td><td>{formatCount(item.minimum)}</td></tr>)}</tbody></table></div> :
-          <p>{products.length ? 'Minimal qoldiqdan past mahsulot yo‘q.' : 'Omborda hali mahsulot yo‘q.'}</p>}
+          <PanelState>{products.length ? 'Minimal qoldiqdan past mahsulot yo‘q.' : 'Omborda hali mahsulot yo‘q.'}</PanelState>}
       </section> : <section>
         <h2>Buyurtma holatlari</h2>
         <div className="bars">{Object.entries(statuses).filter(([status]) => role !== 'supplier' || status !== 'pending').map(([status, label]) => {
@@ -552,7 +570,7 @@ function Overview({ products, orders, manages, role, days, selectView }) {
             {order.expected_delivery_date && <div>Muddat {order.expected_delivery_date}</div>}
             {order.decision && <div>{order.decision === 'accepted' ? 'Do‘kon qabul qildi' : 'Do‘kon rad etdi'}{order.note && <p>{order.note}</p>}</div>}
           </td><td>{formatDashboardDate(order.created_at, true)}</td></tr>)}</tbody>
-        </table></div> : <p>Buyurtmalar hali yo‘q.</p>}
+        </table></div> : <PanelState>Buyurtmalar hali yo‘q.</PanelState>}
       </section>
       {role === 'supplier' && <section className="dashboard-wide">
         <div className="panel-heading"><h2>Yetkazib berish jarayoni</h2><button className="text-button" onClick={() => selectView('orders')}>Buyurtmalarni ochish →</button></div>

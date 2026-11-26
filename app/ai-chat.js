@@ -81,7 +81,7 @@ export default function AiChat({ company, token, openSignal, home, role }) {
 
   return <>
     {home && <section className="ai-home-summary">
-      <div><h2>AI maslahati</h2><p>Qarzlar, buyurtmalar va panelingizdagi ma’lumotlarni tahlil qiling.</p></div>
+      <div><h2 className="icon-heading"><Sparkles size={17} aria-hidden="true" /> AI maslahati</h2><p>Qarzlar, buyurtmalar va panelingizdagi ma’lumotlarni tahlil qiling.</p></div>
       <button type="button" className="secondary" onClick={() => { setOpen(true); send(advicePrompt); }}>
         <Sparkles size={16} aria-hidden="true" /> Bugungi tavsiyalar
       </button>

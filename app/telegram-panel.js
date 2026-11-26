@@ -1,5 +1,7 @@
 'use client';
 
+import { Send } from 'lucide-react';
+import { PanelState, StatusBadge } from './dashboard-ui';
 import { useEffect, useState } from 'react';
 
 export default function TelegramPanel({ company, accessToken, role }) {
@@ -33,14 +35,15 @@ export default function TelegramPanel({ company, accessToken, role }) {
 
   useEffect(()=>{ action('status'); },[company]);
 
-  return <section>
-    <h2>BOSHQA Telegram boti</h2>
+  return <section className="integration-panel">
+    <h2 className="icon-heading"><Send size={18} aria-hidden="true"/> BOSHQA Telegram boti</h2>
     <p>{role==='manager'?'Bot korxona buyurtmalari va ochiq qarzlarni ko‘rsatadi.'
       :role==='supplier'?'Bot sizga biriktirilgan buyurtmalarni, yetkazish manzili va xarita havolalarini ko‘rsatadi.'
       :role==='store'?'Bot do‘koningiz buyurtmalarini va firmalar bo‘yicha qarzlarini ko‘rsatadi.'
       :'Bot o‘zingiz bergan buyurtmalar va ochiq qarzlaringizni ko‘rsatadi.'}</p>
     {notice && <p role="status">{notice}</p>}
-    {status && <p>{status.linked?'Telegram hisobingiz ulangan.':status.configured?'Telegram hisobingiz hali ulanmagan.':'BOSHQA boti hali sozlanmagan.'}</p>}
+    {busy && !status && <PanelState kind="loading">Telegram ulanishi tekshirilmoqda…</PanelState>}
+    {status && <p><StatusBadge status={status.linked ? 'success' : 'pending'}>{status.linked?'Telegram hisobingiz ulangan.':status.configured?'Telegram hisobingiz hali ulanmagan.':'BOSHQA boti hali sozlanmagan.'}</StatusBadge></p>}
     {url && <p><a className="action" href={url} target="_blank" rel="noreferrer">Telegram’da ochish</a> <span>Telegram’da Start tugmasini bosing. Havola bir marta ishlaydi va 15 daqiqada eskiradi.</span></p>}
     {status?.linked && <p>Botda <code>/orders</code>{role==='supplier'?'': ' yoki /debts'} buyrug‘idan foydalaning.</p>}
     <div className="staff-controls">

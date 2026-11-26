@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import BrandWordmark from './brand';
-import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, Percent, Send, ReceiptText, ShoppingBasket } from 'lucide-react';
+import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, Percent, Send, ReceiptText, ShoppingBasket, Inbox, CircleAlert } from 'lucide-react';
 
 const icons = {
   offers: Send, basket: ShoppingBasket, overview: House, shops: Store, store: Store, discounts: Percent, subscriptions: WalletCards, receivables: ReceiptText, telegram: Send, agent: Sparkles, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
@@ -34,7 +34,9 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
   const menuButton = useRef(null);
   const nav = useRef(null);
   const profile = useRef(null);
-  const matches = links.filter(([, label]) => label.toLowerCase().includes(search.trim().toLowerCase()));
+  const normalize = value => value.toLowerCase().replace(/[‘’ʻʼ']/g, '');
+  const terms = normalize(search.trim()).split(/\s+/);
+  const matches = links.filter(([, label]) => terms.every(term => normalize(label).includes(term)));
   const title = links.find(([id]) => id === view)?.[1];
   const mobileLinks = ['overview', 'orders', 'companies', 'shops', 'products', 'basket'].filter(id => links.some(([key]) => key === id)).slice(0, 4);
   const shortLabels = { overview: 'Bosh sahifa', orders: 'Buyurtmalar', companies: 'Firmalar', shops: 'Do‘konlar', products: 'Ombor', basket: 'Savat' };
@@ -118,7 +120,7 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
     </header>
     <main className="workspace-main" inert={mobile && collapsed}>
       {title && <div className="breadcrumb">{company?.name || 'Platforma'} <span aria-hidden="true">/</span> {title}</div>}
-      {children}
+      <div className="workspace-view" data-view={view}>{children}</div>
       {assistant}
     </main>
     {mobile && links.length > 0 && <nav className="mobile-dock" aria-label="Tezkor bo‘limlar" inert={collapsed}>
@@ -136,8 +138,8 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
 }
 
 export function Metrics({ values }) {
-  return <div className="metrics">{values.map(([label, value, Icon, hint]) =>
-    <div key={label} className="metric-card">
+  return <div className="metrics">{values.map(([label, value, Icon, hint, tone]) =>
+    <div key={label} className="metric-card" data-tone={tone}>
       {Icon && <span className="metric-icon"><Icon size={20} aria-hidden="true" /></span>}
       <div><span className="metric-label">{label}</span><strong>{typeof value === 'number' ? formatCount(value) : value}</strong>
         {hint && <small>{hint}</small>}</div>
@@ -168,7 +170,10 @@ export function Trend({ records, dateKey, days, label }) {
     return { label: formatDashboardDate(date, true), value: byDay.get(localDay.format(date)) || 0 };
   });
   const peak = Math.max(1, ...points.map(point => point.value));
+  if (!points.some(point => point.value)) return <PanelState>Tanlangan davrda ma’lumot yo‘q.</PanelState>;
+  const total = points.reduce((sum, point) => sum + point.value, 0);
   return <div className="trend" role="img" aria-label={label + '. ' + points.map(point => point.label + ': ' + point.value).join(', ')}>
+    <div className="trend-total" aria-hidden="true"><strong>{formatCount(total)}</strong><span>Tanlangan davrda</span></div>
     <div className="trend-bars" aria-hidden="true">{points.map((point, index) =>
       <div key={index} title={point.label + ' · ' + point.value}>
         {days === 7 && point.value > 0 && <span>{point.value}</span>}
@@ -182,4 +187,14 @@ export function Trend({ records, dateKey, days, label }) {
 
 export function StatusBadge({ status, children }) {
   return <span className={'status-badge status-' + status}>{children}</span>;
+}
+
+export function PanelState({ children, kind = 'empty', action }) {
+  const Icon = kind === 'error' ? CircleAlert : Inbox;
+  return <div className="panel-state" data-kind={kind} role={kind === 'error' ? 'alert' : 'status'}>
+    {kind === 'loading' ? <div className="state-skeleton" aria-hidden="true"><i/><i/><i/></div> :
+      <span className="state-icon"><Icon size={19} aria-hidden="true" /></span>}
+    <p>{children}</p>
+    {action}
+  </div>;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PanelState } from './dashboard-ui';
 import { accountLogin, loginEmail, sectors } from '../lib/accounts';
 
 export default function Profile({ db, session, member, title, accountAction, onCompanySaved }) {
@@ -134,8 +135,8 @@ export default function Profile({ db, session, member, title, accountAction, onC
     </section>
     {showCompany && <section>
       <h2>Korxona ma’lumotlari</h2>
-      {companyError && <p role="alert">{companyError}</p>}
-      {!company && !companyError && <p role="status">Korxona ma’lumotlari yuklanmoqda…</p>}
+      {companyError && <PanelState kind="error">{companyError}</PanelState>}
+      {!company && !companyError && <PanelState kind="loading">Korxona ma’lumotlari yuklanmoqda…</PanelState>}
       {company && (canEdit ? <form className="profile-fields" onSubmit={saveCompany}>
         <label>Korxona nomi<input name="name" minLength="2" maxLength="100" defaultValue={company.name} required /></label>
         <label>Faoliyat yo‘nalishi<select name="sector" defaultValue={company.sector || ''}>
