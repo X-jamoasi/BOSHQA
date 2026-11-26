@@ -441,7 +441,7 @@ function Company({ member, token, view, selectView }) {
       <p>{products.length ? 'Qaysi mahsulotlar minimal qoldiqqa yetganini va qaysilarini to‘ldirish kerakligini tekshiring.' : 'Tahlilni boshlash uchun Mahsulotlar bo‘limida mahsulot qo‘shing.'}</p>
       <button className="action" disabled={analyzing || !products.length} onClick={analyze}>{analyzing ? 'Tahlil qilinmoqda…' : 'AI xulosasini olish'}</button>
       {insight && <div className="insight" role="status">
-        {insight.source && <strong>{insight.source === 'ai' ? 'AI xulosasi' : 'Qoidaga asoslangan tekshiruv'}</strong>}
+        {insight.source === 'ai' && <strong>AI xulosasi</strong>}
         <p>{insight.text}</p>
       </div>}
     </section>}

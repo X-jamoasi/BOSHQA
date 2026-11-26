@@ -43,10 +43,6 @@ export async function POST(request) {
   if (error) return Response.json({ error: 'Ombor ma’lumotlarini olib bo‘lmadi.' }, { status: 502 });
   if (!products.length) return Response.json({ text: 'Omborda mahsulot yo‘q.' });
 
-  const low = products.filter(item => item.stock <= item.minimum);
-  const stockSummary = low.length
-    ? low.map(item => item.name + ' (' + item.stock + ' dona, minimum ' + item.minimum + ')').join('; ')
-    : 'Kam qolgan mahsulot yo‘q.';
   const { data: allowed, error: limitError } = await db.rpc('allow_inventory_analysis', { p_company: company });
   if (limitError) return Response.json({ error: 'Tahlilni boshlashning imkoni bo‘lmadi.' }, { status: 502 });
   if (!allowed) return Response.json({ error: 'Keyingi tahlil uchun bir daqiqa kuting.' }, { status: 429 });
@@ -58,7 +54,7 @@ export async function POST(request) {
   });
   if (result.error) {
     await recordOutcome(result.unconfigured ? 'unconfigured' : 'error', result.model, result.error);
-    return Response.json({ source: 'rules', text: result.error + '\n\n' + stockSummary });
+    return Response.json({ error: result.error }, { status: result.unconfigured || result.temporary ? 503 : 502 });
   }
   await recordOutcome('success', result.model);
   return Response.json({
