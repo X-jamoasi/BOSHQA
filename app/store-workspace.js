@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Banknote, ClipboardList, Percent, TriangleAlert, WalletCards } from 'lucide-react';
 import { accountLogin } from '../lib/accounts';
+import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
 import { DashboardShell, Metrics, PanelState, StatusBadge, formatDashboardDate } from './dashboard-ui';
 import { MapChoices, formatMoney } from './sales';
@@ -12,7 +13,7 @@ import { Basket, StoreMarket, useBasket } from './marketplace';
 
 const links = [
   ['overview','Bosh sahifa'],['receivables','Qarzlar'],['companies','Firmalar'],['telegram','Telegram bot'],
-  ['orders','Buyurtmalar'],['offers','Takliflar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
+  ['orders','Buyurtmalar'],['documents','Kvitansiyalar'],['offers','Takliflar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
 ];
 const orderStatus={pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘natilgan',delivered:'Yetkazilgan',rejected:'Firma rad etgan'};
 const decisionText={accepted:'Do‘kon qabul qilgan',rejected:'Do‘kon rad etgan'};
@@ -117,6 +118,7 @@ export default function StoreWorkspace({ db, session }) {
     {data&&view==='receivables'&&<section><h2>Firmalar bo‘yicha qarzlar</h2><DebtTable debts={data.debts}/></section>}
     {data&&view==='companies'&&<StoreMarket db={db} basket={basket}/>}
     {data&&view==='basket'&&<Basket db={db} basket={basket} profile={profile} onSent={load}/>}
+    {data&&view==='documents'&&<OrderDocuments db={db}/>}
     {data&&view==='orders'&&<section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2><div className="staff-controls">
         {['active','completed'].map(item=><button type="button" key={item} className={filter===item?'action':'secondary'} aria-pressed={filter===item}
@@ -124,12 +126,13 @@ export default function StoreWorkspace({ db, session }) {
       </div></div>
       {shownOrders.length?<div className="table"><table><thead><tr><th>Firma</th><th>Mahsulot va miqdor</th><th>Summa</th><th>Holat</th><th>Yetkazish muddati</th><th>Amal</th></tr></thead>
         <tbody>{shownOrders.map(order=><tr key={order.id}>
-          <td>{order.company_name}<br/><small>{formatDashboardDate(order.created_at,true)}</small></td>
+          <td><strong>{formatOrderNumber(order.order_number)}</strong><br/>{order.company_name}<br/><small>{formatDashboardDate(order.created_at,true)}</small></td>
           <td>{order.product} · {order.quantity} {order.order_unit}</td><td>{formatMoney(order.order_total)}</td>
           <td><StatusBadge status={order.status}>{orderStatus[order.status]}</StatusBadge>
             {order.decision&&<p>{decisionText[order.decision]}{order.note?' · '+order.note:''}</p>}</td>
           <td>{order.expected_delivery_date||'—'}</td>
-          <td>{order.status==='delivered'&&!order.decision&&<button className="secondary" onClick={()=>setSelected(order.id)}>Qabulni tekshirish</button>}</td>
+          <td>{order.order_number != null && canDownloadOrder(order.status) && <OrderDownload db={db} number={order.order_number}/>}
+          {order.status==='delivered'&&!order.decision&&<button className="secondary" onClick={()=>setSelected(order.id)}>Qabulni tekshirish</button>}</td>
         </tr>)}</tbody></table></div>:<PanelState>Bu holatda buyurtmalar yo‘q.</PanelState>}
       {current&&<form key={current.id} className="store-decision" onSubmit={event=>{
         event.preventDefault();

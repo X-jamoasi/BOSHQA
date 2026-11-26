@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import StoreOffers from './store-offers';
+import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
 import { Basket, ProductCards, useBasket } from './marketplace';
 import StoreWorkspace from './store-workspace';
@@ -182,6 +183,7 @@ const sections = [
   ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
+  ['documents', 'Kvitansiyalar', ''],
   ['basket', 'Savat', '', ['customer']],
   ['receivables', 'Qarzlar', ''],
   ['telegram', 'Telegram bot', '', ['manager','supplier','customer']],
@@ -312,7 +314,7 @@ function Company({ member, token, view, selectView }) {
     const orderQuery = fields => db.from('orders').select(fields).eq('company_id', id).order('created_at', { ascending: false });
     const [inventory, orderRows, suppliers, catalog, shops, discounts, totals, decisions] = await Promise.all([
       manages ? read(db.rpc('inventory', { p_company: id })) : [],
-      read(orderQuery(orderFields + ',checkout_batch_id').then(result => result.error?.code === '42703' ? orderQuery(orderFields) : result)),
+      read(orderQuery(orderFields + ',checkout_batch_id,order_number').then(result => result.error?.code === '42703' ? orderQuery(orderFields + ',checkout_batch_id') : result).then(result => result.error?.code === '42703' ? orderQuery(orderFields) : result)),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
       read(db.rpc('sales_catalog', { p_company: id })),
       manages || role === 'customer' ? read(db.rpc('market_shop_list', { p_company: id }).then(result => result.error?.code === 'PGRST202' ? db.rpc('shop_directory', { p_company: id }) : result)) : [],
@@ -387,7 +389,7 @@ function Company({ member, token, view, selectView }) {
     groups.get(key).push(order);
   }
   const visibleOrders = [...groups.values()].filter(lines => (!orderFilter || lines[0].status === orderFilter) &&
-    (!query || lines.some(order => [productNames.get(order.product_id), order.shop_name, order.delivery_address]
+    (!query || lines.some(order => [productNames.get(order.product_id), order.shop_name, order.delivery_address, formatOrderNumber(order.order_number)]
       .some(value => value?.toLowerCase().includes(query)))));
   const addingProduct = view === 'add-product' && manages;
   const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
@@ -493,6 +495,7 @@ function Company({ member, token, view, selectView }) {
           <SupplierSelect suppliers={suppliers} />
         </Form>}
     </section>}
+    {view === 'documents' && <OrderDocuments db={db} company={id} />}
     {view === 'orders' && <section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati <small className="result-count">{visibleOrders.length}</small></h2>
         <div className="table-filters"><input type="search" aria-label="Buyurtma qidirish" placeholder="Mahsulot yoki do‘kon" value={orderSearch} onChange={event => setOrderSearch(event.target.value)} />
@@ -501,11 +504,14 @@ function Company({ member, token, view, selectView }) {
         </select>
       </div></div>
       {visibleOrders.length ? <div className="table"><table>
-        <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
+        <thead><tr><th>Buyurtma</th><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
         <tbody>{visibleOrders.map(lines => {
           const order = lines[0];
           const total = lines.some(line => line.order_total == null) ? null : lines.reduce((sum, line) => sum + Number(line.order_total), 0);
           return <tr key={order.id}>
+          <td><strong>{formatOrderNumber(order.order_number)}</strong>
+            {order.order_number != null && canDownloadOrder(order.status) && <OrderDownload db={db} company={id} number={order.order_number}/>}
+          </td>
           <td>{lines.length > 1 ? <ul className="order-batch-items">{lines.map(line =>
             <li key={line.id}>{productNames.get(line.product_id) || 'Mahsulot'} · {line.quantity} {line.order_unit}</li>)}</ul> : productNames.get(order.product_id)}</td>
           <td>{lines.length > 1 ? lines.length + ' tur' : [order.quantity, order.order_unit].filter(Boolean).join(' ')}</td>

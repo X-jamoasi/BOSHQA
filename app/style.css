@@ -582,3 +582,5 @@ body:has(.auth-card :focus-visible) .brand-intro { display: none; }
 
 .order-batch-items { margin: 0; padding-inline-start: 16px; min-width: 130px; }
 .order-batch-items li + li { margin-top: 4px; }
+
+.receipt-download { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
