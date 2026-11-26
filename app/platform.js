@@ -1,5 +1,6 @@
 'use client';
 
+import PlatformBusinesses from './platform-businesses';
 import { useEffect, useState } from 'react';
 import { Building2, ClipboardList, Sparkles, TrendingUp } from 'lucide-react';
 import { DateWindow, Metrics, PanelState, StatusBadge, Trend, formatDashboardDate } from './dashboard-ui';
@@ -7,6 +8,7 @@ import { DateWindow, Metrics, PanelState, StatusBadge, Trend, formatDashboardDat
 export const platformSections = [
   ['overview', 'Platforma umumiy ko‘rinishi', '▦'],
   ['companies', 'Korxonalar', '◈'],
+  ['shops', 'Do‘konlar', ''],
   ['monitoring', 'AI monitoring', '✦'],
   ['revenue', 'Daromad', '↗'],
   ['activity', 'Faoliyat jurnali', '≡'],
@@ -18,8 +20,6 @@ export default function Platform({ db, view }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [sector, setSector] = useState('');
   const [days, setDays] = useState(30);
 
   async function load() {
@@ -38,9 +38,6 @@ export default function Platform({ db, view }) {
 
   useEffect(() => { load(); }, [db]);
 
-  const sectors = [...new Set(data?.companies.map(item => item.sector).filter(Boolean))].sort();
-  const companies = data?.companies.filter(item =>
-    (!sector || item.sector === sector) && item.name.toLowerCase().includes(search.trim().toLowerCase()));
   const ai = data?.ai_counts;
   const title = view === 'overview' ? 'Super admin paneli' : platformSections.find(([id]) => id === view)?.[1];
   const recent = data?.companies.filter(item => item.registered_at)
@@ -51,13 +48,13 @@ export default function Platform({ db, view }) {
     <header className="page-header"><div><h1>{title}</h1>
       {view === 'overview' && <p>Korxonalar, platforma faoliyati va AI monitoringi</p>}</div>
       {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
-      {view !== 'revenue' && <button className="secondary" disabled={loading} onClick={load}>Yangilash</button>}
+      {!['revenue','companies','shops'].includes(view) && <button className="secondary" disabled={loading} onClick={load}>Yangilash</button>}
     </header>
     {view === 'revenue' && <section><h2>Obunalar va to‘lovlar</h2>
       <PanelState>BOSHQA’ga to‘lov tizimi hali ulanmagan.</PanelState>
     </section>}
-    {view !== 'revenue' && error && <PanelState kind="error">{error}</PanelState>}
-    {view !== 'revenue' && !data && !error && <PanelState kind="loading">Platforma ma’lumotlari yuklanmoqda…</PanelState>}
+    {!['revenue','companies','shops'].includes(view) && error && <PanelState kind="error">{error}</PanelState>}
+    {!['revenue','companies','shops'].includes(view) && !data && !error && <PanelState kind="loading">Platforma ma’lumotlari yuklanmoqda…</PanelState>}
     {view === 'overview' && data && <>
       <Metrics values={[
         ['Jami korxonalar', data.companies.length, Building2], ['Yangi korxonalar', data.recent_companies, TrendingUp, 'So‘nggi 30 kun'],
@@ -84,19 +81,8 @@ export default function Platform({ db, view }) {
         </section>
       </div>
     </>}
-    {view === 'companies' && data && <section>
-      <div className="panel-heading"><h2>Korxonalar ro‘yxati <small className="result-count">{companies.length}</small></h2></div>
-      <div className="platform-filters">
-        <label>Korxona qidirish<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
-        <label>Yo‘nalish<select value={sector} onChange={event => setSector(event.target.value)}>
-          <option value="">Barcha yo‘nalishlar</option>{sectors.map(item => <option key={item}>{item}</option>)}
-        </select></label>
-      </div>
-      {companies.length ? <div className="table"><table>
-        <thead><tr><th>Korxona</th><th>Faoliyat yo‘nalishi</th><th>Ro‘yxatdan o‘tgan sana</th></tr></thead>
-        <tbody>{companies.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.sector || 'Kiritilmagan'}</td><td>{formatDashboardDate(item.registered_at)}</td></tr>)}</tbody>
-      </table></div> : <PanelState>Korxona topilmadi.</PanelState>}
-    </section>}
+    {view === 'companies' && <PlatformBusinesses key="company" db={db} kind="company" />}
+    {view === 'shops' && <PlatformBusinesses key="store" db={db} kind="store" />}
     {view === 'monitoring' && data && <>
       <Metrics values={[
         ['Tahlil urinishlari · 30 kun', ai.success + ai.error + ai.unconfigured],

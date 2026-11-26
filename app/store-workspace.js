@@ -35,7 +35,7 @@ export default function StoreWorkspace({ db, session }) {
   async function load() {
     const {data,error}=await db.rpc('store_workspace');
     if(error) throw error;
-    if(!data) throw new Error('Do‘kon ma’lumotlari topilmadi.');
+    if(!data) throw new Error('Do‘kon ma’lumotlari topilmadi yoki hisob vaqtincha faol emas.');
     setData(data);
   }
 

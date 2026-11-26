@@ -274,7 +274,7 @@ function Workspace({ session }) {
         <WorkspaceBackup key={member?.company_id || 'platform'} db={db} company={admin ? null : member.company_id}/></>}
       {loaded && admin && view !== 'backup' && view !== 'profile' && <Platform db={db} view={view} />}
       {member && view !== 'backup' && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
-      {loaded && !selected && view !== 'profile' && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
+      {loaded && !admin && !selected && view !== 'profile' && <p role="status">Faol korxona topilmadi. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
   </DashboardShell>;
 }
 
