@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import WorkspaceBackup from './workspace-backup';
 import Platform, { platformSections } from './platform';
 import StoreOffers from './store-offers';
 import { groupOrderLines, groupOrderStatus, groupOrderTotal } from '../lib/order-groups';
@@ -244,7 +245,8 @@ function Workspace({ session }) {
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   const roleLinks = admin ? platformSections : member ? sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)) : [];
   const profileTitle = profileTitles[admin ? 'admin' : member?.role] || 'Hisob ma’lumotlari';
-  const links = loaded ? [...roleLinks, ['profile', profileTitle]] : roleLinks;
+  const hasBackup = Boolean(admin || member);
+  const links = loaded ? [...roleLinks, ...(hasBackup ? [['backup', 'Zaxiralash']] : []), ['profile', profileTitle]] : roleLinks;
   const hasPanel = Boolean(member || (loaded && admin));
   return <DashboardShell links={links} view={view === 'add-product' ? 'products' : view} selectView={setView}
     name={session.user.user_metadata?.full_name || accountLogin(session.user) || session.user.email || 'Hisob'}
@@ -262,8 +264,10 @@ function Workspace({ session }) {
         member={member} title={profileTitle} accountAction={accountAction}
         onCompanySaved={(id, company) => setMemberships(items => items.map(item =>
           item.company_id === id ? { ...item, companies: { ...item.companies, ...company } } : item))} />}
-      {loaded && admin && view !== 'profile' && <Platform db={db} view={view} />}
-      {member && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
+      {hasBackup && view === 'backup' && <><header className="page-header"><h1>Zaxiralash</h1></header>
+        <WorkspaceBackup key={member?.company_id || 'platform'} db={db} company={admin ? null : member.company_id}/></>}
+      {loaded && admin && view !== 'backup' && view !== 'profile' && <Platform db={db} view={view} />}
+      {member && view !== 'backup' && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
       {loaded && !selected && view !== 'profile' && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
   </DashboardShell>;
 }

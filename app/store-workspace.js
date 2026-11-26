@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Banknote, ClipboardList, Percent, TriangleAlert, WalletCards } from 'lucide-react';
 import { accountLogin } from '../lib/accounts';
 import { groupOrderLines, groupOrderStatus, groupOrderTotal } from '../lib/order-groups';
+import WorkspaceBackup from './workspace-backup';
 import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
 import { DashboardShell, Metrics, PanelState, StatusBadge, formatDashboardDate } from './dashboard-ui';
@@ -14,7 +15,7 @@ import { Basket, StoreMarket, useBasket } from './marketplace';
 
 const links = [
   ['overview','Bosh sahifa'],['receivables','Qarzlar'],['companies','Firmalar'],['telegram','Telegram bot'],
-  ['orders','Buyurtmalar'],['documents','Kvitansiyalar'],['offers','Takliflar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
+  ['orders','Buyurtmalar'],['documents','Kvitansiyalar'],['offers','Takliflar'],['basket','Savat'],['store','Do‘kon'],['backup','Zaxiralash'],['assistant','AI nazorati'],
 ];
 const orderStatus={pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘natilgan',delivered:'Yetkazilgan',rejected:'Firma rad etgan'};
 const decisionText={accepted:'Do‘kon qabul qilgan',rejected:'Do‘kon rad etgan'};
@@ -119,6 +120,7 @@ export default function StoreWorkspace({ db, session }) {
     {data&&view==='receivables'&&<section><h2>Firmalar bo‘yicha qarzlar</h2><DebtTable debts={data.debts}/></section>}
     {data&&view==='companies'&&<StoreMarket db={db} basket={basket}/>}
     {data&&view==='basket'&&<Basket db={db} basket={basket} profile={profile} onSent={load}/>}
+    {data&&view==='backup'&&<WorkspaceBackup db={db}/>}
     {data&&view==='documents'&&<OrderDocuments db={db}/>}
     {data&&view==='orders'&&<section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2><div className="staff-controls">
