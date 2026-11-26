@@ -6,14 +6,25 @@ const statuses = {pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘nat
 const money = new Intl.NumberFormat('uz-UZ',{maximumFractionDigits:2});
 const empty = () => new Response(null,{status:200});
 
+const buttons = {
+  'Faol buyurtmalar': 'active',
+  'Tugatilgan buyurtmalar': 'completed',
+  'Qarzlar': 'debts',
+  'Yordam': 'help',
+};
+const orderCommands = ['orders', 'active', 'completed'];
+const debtRoles = ['manager', 'customer', 'store'];
+
 function answer(command, payload) {
   if (!payload) return 'Ulanish faol emas. BOSHQA panelidan bir martalik havolani oching.';
+  if (command === 'active') return 'Faol buyurtmalar yo‘q.';
+  if (command === 'completed') return 'Tugatilgan buyurtmalar yo‘q.';
   if (command === 'orders') return 'Siz ko‘ra oladigan buyurtma topilmadi.';
   if (command === 'debts' && payload.items) {
     return payload.items.length ? payload.items.map(item => (item.shop_name || 'Do‘kon nomi saqlanmagan')+
       ' · '+money.format(item.balance)+' so‘m · '+item.due_on+(item.overdue?' · Muddat o‘tgan':'')).join('\n') : 'Ochiq qarz topilmadi.';
   }
-  return 'Buyurtmalar uchun /orders'+(payload.role === 'supplier' ? '.' : ', qarzlar uchun /debts.');
+  return 'Pastdagi tugmalardan bo‘limni tanlang. /orders orqali oxirgi buyurtmalarni ham ko‘rishingiz mumkin.';
 }
 
 export async function POST(request) {
@@ -27,8 +38,8 @@ export async function POST(request) {
   const chat=String(message.chat.id);
   const text=message.text.trim();
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)? ([A-Za-z0-9_-]{32})$/);
-  const commandMatch=text.match(/^\/(orders|debts)(?:@[A-Za-z0-9_]+)?$/);
-  const command=commandMatch?.[1] || 'help';
+  const commandMatch=text.match(/^\/(orders|active|completed|debts|help)(?:@[A-Za-z0-9_]+)?$/);
+  const command=commandMatch?.[1] || (Object.hasOwn(buttons, text) ? buttons[text] : 'help');
 
   let linkedNow=false;
   if (start) {
@@ -50,11 +61,18 @@ export async function POST(request) {
     data=store;
   }
   if (!data && !start && !text.startsWith('/start')) return empty();
-  const sendText = text => telegramRequest(token, 'sendMessage', {
+  const replyMarkup = data ? {
+    keyboard: [[{ text: 'Faol buyurtmalar' }, { text: 'Tugatilgan buyurtmalar' }],
+      [...(debtRoles.includes(data.role) ? [{ text: 'Qarzlar' }] : []), { text: 'Yordam' }]],
+    resize_keyboard: true,
+    is_persistent: true,
+  } : { remove_keyboard: true };
+  const sendText = (text, menu = true) => telegramRequest(token, 'sendMessage', {
+    ...(menu ? { reply_markup: replyMarkup } : {}),
     chat_id: chat, text: text.slice(0, 3900), link_preview_options: { is_disabled: true },
   });
 
-  if (command === 'orders' && data?.items?.length) {
+  if (orderCommands.includes(command) && data?.items?.length) {
     let sentAny = false;
     for (const lines of groupOrderLines(data.items)) {
       const item = lines[0];
@@ -65,7 +83,7 @@ export async function POST(request) {
         item.shop_name, item.delivery_address, item.shop_phone ? 'Telefon ' + item.shop_phone : '',
         ...lines.map(line => '• ' + String(line.product).replace(/\s+/g, ' ').slice(0, 44) + ' · ' + line.quantity + ' ' + (line.order_unit || 'dona')),
       ].filter(Boolean).join('\n');
-      const sent = await sendText(description);
+      const sent = await sendText(description, !sentAny);
       if (!sent) {
         // Telegram retries the whole update on a non-2xx response.
         if (!sentAny) return new Response(null, { status: 503 });
