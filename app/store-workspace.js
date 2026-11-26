@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Banknote, ClipboardList, Percent, TriangleAlert, WalletCards } from 'lucide-react';
 import { accountLogin } from '../lib/accounts';
 import { groupOrderLines, groupOrderStatus, groupOrderTotal } from '../lib/order-groups';
+import VoiceOrder from './voice-order';
 import WorkspaceBackup from './workspace-backup';
 import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
@@ -122,6 +123,7 @@ export default function StoreWorkspace({ db, session }) {
     {data&&view==='basket'&&<Basket db={db} basket={basket} profile={profile} onSent={load}/>}
     {data&&view==='backup'&&<WorkspaceBackup db={db}/>}
     {data&&view==='documents'&&<OrderDocuments db={db}/>}
+    {data&&view==='orders'&&<VoiceOrder companies={data.companies} token={session.access_token} store basket={basket} openBasket={()=>setView('basket')}/>}
     {data&&view==='orders'&&<section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2><div className="staff-controls">
         {['active','completed'].map(item=><button type="button" key={item} className={filter===item?'action':'secondary'} aria-pressed={filter===item}

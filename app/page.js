@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import VoiceOrder from './voice-order';
 import WorkspaceBackup from './workspace-backup';
 import Platform, { platformSections } from './platform';
 import StoreOffers from './store-offers';
@@ -468,6 +469,8 @@ function Company({ member, token, view, selectView }) {
     </section>}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && role === 'supplier' && <ProductList products={products} />}
+    {role === 'customer' && view === 'orders' && <VoiceOrder companies={[{ id, name: member.companies.name }]}
+      token={token} basket={basket} openBasket={() => selectView('basket')} />}
     {role === 'customer' && (view === 'orders' || view === 'catalog') && <ProductCards products={products}
       basket={basket} company={{ id, name: member.companies.name }} />}
     {role === 'customer' && view === 'basket' && <Basket db={db} basket={basket} shops={shops} initialShop={orderShop} onSent={load} />}
