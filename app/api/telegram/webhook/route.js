@@ -1,4 +1,5 @@
 import { botToken, hashCode, telegramRequest, telegramService, verifySecret, webhookSecret } from '../../../../lib/telegram';
+import { groupOrderLines, groupOrderStatus } from '../../../../lib/order-groups';
 import { mapCoordinates } from '../../../../lib/maps';
 
 const statuses = {pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘natilgan',delivered:'Topshirilgan',rejected:'Rad etilgan'};
@@ -55,10 +56,14 @@ export async function POST(request) {
 
   if (command === 'orders' && data?.items?.length) {
     let sentAny = false;
-    for (const item of data.items) {
+    for (const lines of groupOrderLines(data.items)) {
+      const item = lines[0];
+      const status = groupOrderStatus(lines);
       const description = [
-        item.product + ' · ' + item.quantity + ' ' + (item.order_unit || 'dona') + ' · ' + (statuses[item.status] || item.status),
+        item.order_number == null ? null : 'Buyurtma BQ-' + String(item.order_number).padStart(8, '0'),
+        statuses[status] || status,
         item.shop_name, item.delivery_address, item.shop_phone ? 'Telefon ' + item.shop_phone : '',
+        ...lines.map(line => '• ' + String(line.product).replace(/\s+/g, ' ').slice(0, 44) + ' · ' + line.quantity + ' ' + (line.order_unit || 'dona')),
       ].filter(Boolean).join('\n');
       const sent = await sendText(description);
       if (!sent) {
