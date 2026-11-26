@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import StoreOffers from './store-offers';
+import { groupOrderLines, groupOrderStatus, groupOrderTotal } from '../lib/order-groups';
 import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
 import { Basket, ProductCards, useBasket } from './marketplace';
@@ -382,13 +383,7 @@ function Company({ member, token, view, selectView }) {
   const { products, orders, suppliers, shops, discounts } = snapshot;
   const productNames = new Map(products.map(item => [item.id, item.name]));
   const query = orderSearch.trim().toLowerCase();
-  const groups = new Map();
-  for (const order of orders) {
-    const key = manages && order.status === 'pending' && order.checkout_batch_id ? order.checkout_batch_id : order.id;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(order);
-  }
-  const visibleOrders = [...groups.values()].filter(lines => (!orderFilter || lines[0].status === orderFilter) &&
+  const visibleOrders = groupOrderLines(orders).filter(lines => (!orderFilter || groupOrderStatus(lines) === orderFilter) &&
     (!query || lines.some(order => [productNames.get(order.product_id), order.shop_name, order.delivery_address, formatOrderNumber(order.order_number)]
       .some(value => value?.toLowerCase().includes(query)))));
   const addingProduct = view === 'add-product' && manages;
@@ -506,8 +501,8 @@ function Company({ member, token, view, selectView }) {
       {visibleOrders.length ? <div className="table"><table>
         <thead><tr><th>Buyurtma</th><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
         <tbody>{visibleOrders.map(lines => {
-          const order = lines[0];
-          const total = lines.some(line => line.order_total == null) ? null : lines.reduce((sum, line) => sum + Number(line.order_total), 0);
+          const order = { ...lines[0], status: groupOrderStatus(lines) };
+          const total = groupOrderTotal(lines);
           return <tr key={order.id}>
           <td><strong>{formatOrderNumber(order.order_number)}</strong>
             {order.order_number != null && canDownloadOrder(order.status) && <OrderDownload db={db} company={id} number={order.order_number}/>}
@@ -525,10 +520,11 @@ function Company({ member, token, view, selectView }) {
           </td>
           {role !== 'customer' && <td>
             <OrderActions company={id} order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
-            {order.status==='delivered'&&order.direction==='outbound'&&<button className="text-button" type="button" onClick={()=>{
-              setReceiptOrder(order.id);
-              selectView('receivables');
-            }}>To‘lovni ko‘rish →</button>}
+            {order.status === 'delivered' && order.direction === 'outbound' && lines.map(line =>
+              <button key={line.id} className="text-button" type="button" onClick={() => {
+                setReceiptOrder(line.id);
+                selectView('receivables');
+              }}>{lines.length > 1 ? 'To‘lov · ' + (productNames.get(line.product_id) || 'Mahsulot') : 'To‘lovni ko‘rish →'}</button>)}
           </td>}
         </tr>; })}</tbody>
       </table></div> : <PanelState>{orderFilter || query ? 'Filtrga mos buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</PanelState>}
@@ -627,11 +623,14 @@ function OrderActions({ company, order, manages, suppliers, disabled, change }) 
       : <button className="action" disabled={disabled} onClick={() => move('approved')}>Tasdiqlash</button>}
     <button className="action" disabled={disabled} onClick={() => order.checkout_batch_id ? reviewBatch(false) : move('rejected')}>Rad etish</button>
   </>;
+  const deliver = next => order.checkout_batch_id ? change('advance_checkout_delivery', {
+    p_company: company, p_batch: order.checkout_batch_id, p_next: next,
+  }) : move(next);
   if (!manages && order.status === 'approved') {
-    return <button className="action" disabled={disabled} onClick={() => move('shipped')}>Jo‘natish</button>;
+    return <button className="action" disabled={disabled} onClick={() => deliver('shipped')}>Jo‘natish</button>;
   }
   if (order.status === 'shipped' && manages === (order.direction === 'inbound')) {
-    return <button className="action" disabled={disabled} onClick={() => move('delivered')}>{manages ? 'Omborga qabul qilish' : 'Mijozga topshirildi'}</button>;
+    return <button className="action" disabled={disabled} onClick={() => deliver('delivered')}>{manages ? 'Omborga qabul qilish' : 'Mijozga topshirildi'}</button>;
   }
   return null;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Banknote, ClipboardList, Percent, TriangleAlert, WalletCards } from 'lucide-react';
 import { accountLogin } from '../lib/accounts';
+import { groupOrderLines, groupOrderStatus, groupOrderTotal } from '../lib/order-groups';
 import OrderDocuments, { canDownloadOrder, formatOrderNumber, OrderDownload } from './order-documents';
 import AiChat from './ai-chat';
 import { DashboardShell, Metrics, PanelState, StatusBadge, formatDashboardDate } from './dashboard-ui';
@@ -81,7 +82,7 @@ export default function StoreWorkspace({ db, session }) {
 
   const profile=data?.profile;
   const stats=data?.stats;
-  const shownOrders=data?.orders.filter(order=>filter==='active'?activeStatus.includes(order.status):!activeStatus.includes(order.status));
+  const shownOrders=groupOrderLines(data?.orders || []).filter(lines => activeStatus.includes(groupOrderStatus(lines)) === (filter === 'active'));
   const current=data?.orders.find(order=>order.id===selected);
   const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const nextWeek = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+7*86400000));
@@ -125,21 +126,26 @@ export default function StoreWorkspace({ db, session }) {
           onClick={()=>{setFilter(item);setSelected(null);}}>{item==='active'?'Faol':'Yakunlangan'}</button>)}
       </div></div>
       {shownOrders.length?<div className="table"><table><thead><tr><th>Firma</th><th>Mahsulot va miqdor</th><th>Summa</th><th>Holat</th><th>Yetkazish muddati</th><th>Amal</th></tr></thead>
-        <tbody>{shownOrders.map(order=><tr key={order.id}>
+        <tbody>{shownOrders.map(lines => {
+          const order = { ...lines[0], status: groupOrderStatus(lines) };
+          const undecided = lines.find(line => !line.decision);
+          return <tr key={order.id}>
           <td><strong>{formatOrderNumber(order.order_number)}</strong><br/>{order.company_name}<br/><small>{formatDashboardDate(order.created_at,true)}</small></td>
-          <td>{order.product} · {order.quantity} {order.order_unit}</td><td>{formatMoney(order.order_total)}</td>
+          <td><ul className="order-batch-items">{lines.map(line => <li key={line.id}>{line.product} · {line.quantity} {line.order_unit}</li>)}</ul></td><td>{formatMoney(groupOrderTotal(lines))}</td>
           <td><StatusBadge status={order.status}>{orderStatus[order.status]}</StatusBadge>
             {order.decision&&<p>{decisionText[order.decision]}{order.note?' · '+order.note:''}</p>}</td>
           <td>{order.expected_delivery_date||'—'}</td>
           <td>{order.order_number != null && canDownloadOrder(order.status) && <OrderDownload db={db} number={order.order_number}/>}
-          {order.status==='delivered'&&!order.decision&&<button className="secondary" onClick={()=>setSelected(order.id)}>Qabulni tekshirish</button>}</td>
-        </tr>)}</tbody></table></div>:<PanelState>Bu holatda buyurtmalar yo‘q.</PanelState>}
+          {order.status==='delivered'&&undecided&&<button className="secondary" onClick={()=>setSelected(undecided.id)}>Qabulni tekshirish</button>}</td>
+        </tr>; })}</tbody></table></div>:<PanelState>Bu holatda buyurtmalar yo‘q.</PanelState>}
       {current&&<form key={current.id} className="store-decision" onSubmit={event=>{
         event.preventDefault();
         const fields=new FormData(event.currentTarget);
         const value=event.nativeEvent.submitter?.value;
         if(!value)return;
-        change('decide_store_delivery',{p_order:current.id,p_accept:value==='accept',p_note:fields.get('note')||''});
+        const args = { p_accept:value==='accept',p_note:fields.get('note')||'' };
+        if (current.order_number != null) change('decide_order_group', { ...args, p_number: current.order_number });
+        else change('decide_store_delivery', { ...args, p_order: current.id });
       }}>
         <h3>{current.product} · Qabulni tekshirish</h3>
         <label>Izoh (ixtiyoriy)<textarea name="note" rows="3" maxLength="500" placeholder="Masalan, 10 dona o‘rniga 9 dona keldi" /></label>
