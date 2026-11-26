@@ -495,3 +495,12 @@ body:has(.auth-card :focus-visible) .brand-intro { display: none; }
   .store-spending > div { grid-template-columns: minmax(0,1fr) auto; }
   .store-spending progress { grid-column: 1 / -1; grid-row: 2; }
 }
+
+.offer-form { display: grid; gap: 10px; max-width: 620px; margin-top: 12px; }
+.offer-form label { min-width: 0; }
+.offer-form textarea { resize: vertical; border: 1px solid #bac8dc; border-radius: 8px; padding: 9px; font: inherit; }
+.offer-form button { justify-self: start; min-height: 42px; }
+.offer-item { border-top: 1px solid var(--line); padding-block: 14px; }
+.offer-item h3 { margin: 0 0 4px; }
+.offer-item p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.offer-reply { background: #eef4ff; border-radius: 9px; padding: 10px; }

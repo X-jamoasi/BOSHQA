@@ -6,12 +6,13 @@ import { accountLogin } from '../lib/accounts';
 import AiChat from './ai-chat';
 import { DashboardShell, Metrics, StatusBadge, formatDashboardDate } from './dashboard-ui';
 import { MapChoices, formatMoney } from './sales';
+import StoreOffers, { StoreAreaFields } from './store-offers';
 import TelegramPanel from './telegram-panel';
 import { Basket, StoreMarket, useBasket } from './marketplace';
 
 const links = [
   ['overview','Bosh sahifa'],['receivables','Qarzlar'],['companies','Firmalar'],['telegram','Telegram bot'],
-  ['orders','Buyurtmalar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
+  ['orders','Buyurtmalar'],['offers','Takliflar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
 ];
 const orderStatus={pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘natilgan',delivered:'Yetkazilgan',rejected:'Firma rad etgan'};
 const decisionText={accepted:'Do‘kon qabul qilgan',rejected:'Do‘kon rad etgan'};
@@ -143,7 +144,8 @@ export default function StoreWorkspace({ db, session }) {
           <button className="secondary" value="reject" disabled={busy}>Rad etish</button></div>
       </form>}
     </section>}
-    {data&&view==='store'&&<StoreProfile profile={profile} busy={busy} change={change}/>}
+    {data&&view==='store'&&<StoreProfile db={db} profile={profile} busy={busy} change={change}/>}
+    {data&&view==='offers'&&<StoreOffers db={db}/>}
     {data&&view==='telegram'&&<TelegramPanel company={null} accessToken={session.access_token} role="store"/>}
     {data&&view==='assistant'&&<div className="dashboard-grid">
       <section><h2><TriangleAlert size={16}/> Yaqin va o‘tgan qarz muddatlari</h2><DebtTable debts={dueSoon}/></section>
@@ -163,7 +165,7 @@ function DebtTable({ debts }) {
   </table></div>:<p>Bu ro‘yxatda ochiq qarz yo‘q.</p>;
 }
 
-function StoreProfile({ profile,busy,change }) {
+function StoreProfile({ db,profile,busy,change }) {
   const [message,setMessage]=useState('');
   const lat=useRef(null), lng=useRef(null);
   return <section>
@@ -180,7 +182,9 @@ function StoreProfile({ profile,busy,change }) {
     <form key={JSON.stringify(profile)} className="profile-fields" onSubmit={event=>{
       event.preventDefault();
       const fields=new FormData(event.currentTarget);
-      change('update_store_workspace',{
+      const area = fields.get('area');
+      change(area ? 'save_store_area_profile' : 'update_store_workspace',{
+        ...(area ? { p_area: Number(area) } : {}),
         p_name:fields.get('name'),p_legal_type:fields.get('legal_type'),p_legal_name:fields.get('legal_name'),
         p_phone:fields.get('phone'),p_address:fields.get('address'),p_latitude:Number(fields.get('latitude')),p_longitude:Number(fields.get('longitude')),
       });
@@ -189,6 +193,7 @@ function StoreProfile({ profile,busy,change }) {
       <label>Yuridik shakl<select name="legal_type" defaultValue={profile.legal_type||'yatt'}><option value="yatt">YaTT</option><option value="mchj">MChJ</option></select></label>
       <label>Firma yoki tadbirkor nomi<input name="legal_name" defaultValue={profile.legal_name||''} minLength="2" maxLength="150" required /></label>
       <label>Do‘kon telefoni<input name="phone" type="tel" defaultValue={profile.phone||''} maxLength="16" placeholder="+998901234567" required /></label>
+      <StoreAreaFields db={db} initialArea={profile.area_id}/>
       <label>Do‘kon manzili<input name="address" defaultValue={profile.address||''} minLength="5" maxLength="250" required /></label>
       <label>Kenglik<input ref={lat} name="latitude" defaultValue={profile.latitude??''} type="number" step="any" min="-90" max="90" required /></label>
       <label>Uzunlik<input ref={lng} name="longitude" defaultValue={profile.longitude??''} type="number" step="any" min="-180" max="180" required /></label>

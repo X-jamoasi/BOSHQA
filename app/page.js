@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
+import StoreOffers from './store-offers';
 import AiChat from './ai-chat';
 import { Basket, ProductCards, useBasket } from './marketplace';
 import StoreWorkspace from './store-workspace';
@@ -184,6 +185,7 @@ const sections = [
   ['basket', 'Savat', '', ['customer']],
   ['receivables', 'Qarzlar', ''],
   ['telegram', 'Telegram bot', '', ['manager','supplier','customer']],
+  ['offers', 'Taklif yozish', '', ['owner', 'manager']],
   ['agent', 'AI agent', '', ['owner','manager']],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
 ];
@@ -440,6 +442,7 @@ function Company({ member, token, view, selectView }) {
     {view === 'subscriptions' && role === 'owner' && <SubscriptionPlans company={id} />}
     {view === 'receivables' && <Receivables db={db} company={id} role={role} onUpdated={loadOverdue} initialOrder={receiptOrder} />}
     {view === 'telegram' && ['manager','supplier','customer'].includes(role) && <TelegramPanel company={id} accessToken={token} role={role} />}
+    {view === 'offers' && manages && <StoreOffers db={db} company={id} />}
     {view === 'agent' && manages && <section className="tushum-section">
       <div className="tushum-card">
         <span className="tushum-icon"><AudioLines size={28} aria-hidden="true" /></span>
