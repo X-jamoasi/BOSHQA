@@ -6,20 +6,34 @@ const statuses = {pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘nat
 const money = new Intl.NumberFormat('uz-UZ',{maximumFractionDigits:2});
 const empty = () => new Response(null,{status:200});
 
-const buttons = {
-  'Faol buyurtmalar': 'active',
-  'Tugatilgan buyurtmalar': 'completed',
-  'Qarzlar': 'debts',
-  'Yordam': 'help',
+const menus = {
+  manager: [
+    [['Tasdiq kutayotganlar', 'pending'], ['Faol buyurtmalar', 'active']],
+    [['Tugatilgan buyurtmalar', 'completed'], ['Qarzlar', 'debts']],
+  ],
+  supplier: [
+    [['Jo‘natishga tayyor', 'ready'], ['Yo‘ldagi buyurtmalar', 'transit']],
+    [['Yetkazilgan buyurtmalar', 'delivered'], ['Faol buyurtmalar', 'active']],
+  ],
+  customer: [
+    [['Mening faol buyurtmalarim', 'active'], ['Tugatilgan buyurtmalar', 'completed']],
+    [['Do‘konlar bo‘yicha qarzlar', 'debts']],
+  ],
+  store: [
+    [['Faol buyurtmalarim', 'active'], ['Tugatilgan buyurtmalar', 'completed']],
+    [['Firmalar bo‘yicha qarzlar', 'debts']],
+  ],
 };
-const orderCommands = ['orders', 'active', 'completed'];
-const debtRoles = ['manager', 'customer', 'store'];
+const buttons = new Map(Object.values(menus).flat(1).flat());
+buttons.set('Qarzlar', 'debts');
+buttons.set('Yordam', 'help');
+const orderCommands = ['orders', 'active', 'completed', 'pending', 'ready', 'transit', 'delivered'];
 
 function answer(command, payload) {
   if (!payload) return 'Ulanish faol emas. BOSHQA panelidan bir martalik havolani oching.';
   if (command === 'active') return 'Faol buyurtmalar yo‘q.';
   if (command === 'completed') return 'Tugatilgan buyurtmalar yo‘q.';
-  if (command === 'orders') return 'Siz ko‘ra oladigan buyurtma topilmadi.';
+  if (orderCommands.includes(command)) return 'Siz ko‘ra oladigan buyurtma topilmadi.';
   if (command === 'debts' && payload.items) {
     return payload.items.length ? payload.items.map(item => (item.shop_name || 'Do‘kon nomi saqlanmagan')+
       ' · '+money.format(item.balance)+' so‘m · '+item.due_on+(item.overdue?' · Muddat o‘tgan':'')).join('\n') : 'Ochiq qarz topilmadi.';
@@ -38,8 +52,8 @@ export async function POST(request) {
   const chat=String(message.chat.id);
   const text=message.text.trim();
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)? ([A-Za-z0-9_-]{32})$/);
-  const commandMatch=text.match(/^\/(orders|active|completed|debts|help)(?:@[A-Za-z0-9_]+)?$/);
-  const command=commandMatch?.[1] || (Object.hasOwn(buttons, text) ? buttons[text] : 'help');
+  const commandMatch=text.match(/^\/(orders|active|completed|pending|ready|transit|delivered|debts|help)(?:@[A-Za-z0-9_]+)?$/);
+  const command=commandMatch?.[1] || buttons.get(text) || 'help';
 
   let linkedNow=false;
   if (start) {
@@ -62,8 +76,7 @@ export async function POST(request) {
   }
   if (!data && !start && !text.startsWith('/start')) return empty();
   const replyMarkup = data ? {
-    keyboard: [[{ text: 'Faol buyurtmalar' }, { text: 'Tugatilgan buyurtmalar' }],
-      [...(debtRoles.includes(data.role) ? [{ text: 'Qarzlar' }] : []), { text: 'Yordam' }]],
+    keyboard: [...(menus[data.role] || []).map(row => row.map(([text]) => ({ text }))), [{ text: 'Yordam' }]],
     resize_keyboard: true,
     is_persistent: true,
   } : { remove_keyboard: true };
