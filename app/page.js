@@ -229,7 +229,7 @@ function Workspace({ session }) {
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   const roleLinks = admin ? platformSections : member ? sections.filter(([id, , , allowed]) => id !== 'add-product' && (!allowed || allowed.includes(member.role))) : [];
   const profileTitle = profileTitles[admin ? 'admin' : member?.role] || 'Hisob ma’lumotlari';
-  const links = loaded ? [...roleLinks, ...(roleLinks.length ? [['assistant', 'AI yordamchi']] : []), ['profile', profileTitle]] : roleLinks;
+  const links = loaded ? [...roleLinks, ...(roleLinks.length ? [['assistant', 'AI maslahati']] : []), ['profile', profileTitle]] : roleLinks;
   const hasPanel = Boolean(member || (loaded && admin));
   return <DashboardShell links={links} view={view === 'add-product' ? 'products' : view} selectView={setView}
     name={session.user.user_metadata?.full_name || accountLogin(session.user) || session.user.email || 'Hisob'}
@@ -237,8 +237,8 @@ function Workspace({ session }) {
     selected={selected} selectCompany={id => { setSelected(id); setView('overview'); setAiSignal(0); }}
     signOut={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}
     openAI={hasPanel ? () => setAiSignal(value => value + 1) : undefined}
-    assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} standalone={view === 'assistant'}
-      company={member?.company_id || null} token={session.access_token} role={member?.role} />}>
+    assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} home={view === 'overview'} standalone={view === 'assistant'}
+      company={member?.company_id || null} token={session.access_token} role={admin ? 'admin' : member?.role} />}>
       {notice && <div role="status"><p>{notice}</p>
         {!loaded && <button type="button" className="secondary" onClick={retryWorkspace}>Qayta tekshirish</button>}
       </div>}

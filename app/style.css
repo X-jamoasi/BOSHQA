@@ -342,3 +342,42 @@ body > .auth-page { display: grid; place-items: center; min-height: 100dvh; max-
 .store-decision textarea {
   width: 100%;
 }
+
+.ai-workspace { margin-block: 24px; }
+.ai-workspace .ai-window, .ai-widget .ai-window {
+  padding: 0;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+  scroll-margin-top: 80px;
+}
+.ai-workspace .ai-window { width: 100%; min-height: 360px; box-shadow: 0 4px 18px #1c396a0b; }
+.ai-widget .ai-window { width: min(440px, calc(100vw - 32px)); }
+.ai-window-title { padding: 14px 16px; background: #f4f8ff; justify-content: flex-start; gap: 12px; }
+.ai-window-title h2 { font-size: 1rem; }
+.ai-window-title small, .ai-message small { color: #476080; font-size: .75rem; }
+.ai-brand-icon { display: grid; place-items: center; width: 39px; height: 39px; background: #dceaff; color: #1454bc; border-radius: 12px; flex: none; }
+.ai-advice { margin-inline-start: auto; }
+.ai-advice, .ai-close { display: inline-flex; align-items: center; gap: 6px; }
+.ai-thread { min-height: 140px; max-height: min(420px, 50dvh); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.ai-welcome > p { margin-top: 0; }
+.ai-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+.ai-suggestions button { white-space: normal; text-align: start; font-size: .8rem; }
+.ai-message { align-self: flex-start; max-width: 92%; background: #eef4ff; padding: 10px 13px; margin: 0; border-radius: 4px 14px 14px 14px; }
+.ai-message.user { align-self: flex-end; background: #1956b9; color: #fff; border-radius: 14px 4px 14px 14px; }
+.ai-message.user p { color: inherit; }
+.ai-compose { padding: 12px 16px; border-top: 1px solid #e5eaf1; align-items: end; }
+.ai-compose textarea { display: block; max-height: 120px; }
+.ai-compose .action { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 12px; }
+.ai-progress { display: flex; gap: 8px; align-items: center; }
+.ai-progress svg { animation: ai-spin 1s linear infinite; }
+.ai-error { color: #9f271c; }
+.ai-launcher-home { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-progress svg { animation: none; } }
+@media (max-width: 500px) {
+  .ai-window-title, .ai-thread, .ai-compose { padding-inline: 11px; }
+  .ai-advice { font-size: .75rem; }
+  .ai-message { max-width: 97%; }
+}
