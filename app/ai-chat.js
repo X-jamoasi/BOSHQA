@@ -18,6 +18,7 @@ export default function AiChat({ company, token, openSignal, home, role }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [pending, setPending] = useState('');
+  const [action, setAction] = useState(null);
   const [error, setError] = useState('');
   const input = useRef(null);
   const launcher = useRef(null);
@@ -44,11 +45,36 @@ export default function AiChat({ company, token, openSignal, home, role }) {
 
   useEffect(() => {
     if (open && thread.current) thread.current.scrollTop = thread.current.scrollHeight;
-  }, [messages, pending, error, open]);
+  }, [messages, pending, error, open, action]);
+
+  async function requestAction(text, confirmation) {
+    setPending(text);
+    setError('');
+    try {
+      const response = await fetch('/api/chat/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ company, store: role === 'store', text, confirm: Boolean(confirmation), label: confirmation?.label }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      if (confirmation) {
+        setAction(null);
+        setMessages(previous => [...previous, { role: 'user', text }, { role: 'assistant', text: result.text }].slice(-100));
+      } else {
+        setAction({ text, label: result.label });
+        setQuestion('');
+      }
+    } catch (error) {
+      setError(error.message || 'Amalni bajarib bo‘lmadi.');
+    } finally { setPending(''); }
+  }
 
   async function send(text) {
     text = text.trim();
     if (!text || pending) return;
+    setAction(null);
+    if (/^\/amal(?:\s|$)/i.test(text)) return requestAction(text);
     const next = [...messages, { role: 'user', text }].slice(-9);
     setPending(text);
     setError('');
@@ -65,6 +91,7 @@ export default function AiChat({ company, token, openSignal, home, role }) {
         return;
       }
       setMessages(previous => [...previous, { role: 'user', text }, { role: 'assistant', text: result.text, model: result.model }].slice(-100));
+      if (result.action) setAction(result.action);
       setQuestion('');
     } catch {
       setError('AI yordamchi bilan aloqa uzildi. Qayta urinib ko‘ring.');
@@ -107,6 +134,13 @@ export default function AiChat({ company, token, openSignal, home, role }) {
               <p>{text}</p>
               {model && <small>{model}</small>}
             </article>)}
+          {action && <div className="insight">
+            <p>{action.label}</p>
+            <div className="staff-controls">
+              <button type="button" className="action" disabled={Boolean(pending)} onClick={() => requestAction(action.text, action)}>Amalni tasdiqlash</button>
+              <button type="button" className="secondary" disabled={Boolean(pending)} onClick={() => setAction(null)}>Bekor qilish</button>
+            </div>
+          </div>}
           {pending && <p className="ai-progress" role="status"><LoaderCircle size={16} aria-hidden="true" /> Gemini javob tayyorlamoqda…</p>}
           {error && <p className="ai-error" role="alert">{error}</p>}
         </div>

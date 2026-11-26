@@ -1,3 +1,4 @@
+import { parseChatAction, resolveChatAction } from '../../../lib/chat-actions';
 import { loadChatContext } from '../../../lib/chat-context';
 import { generateAi } from '../../../lib/ai-provider';
 import { makeSupabase } from '../../../lib/supabase';
@@ -50,17 +51,18 @@ export async function POST(request) {
   const previousQuestion = messages.length >= 3 ? messages.at(-3).text : '';
   const followsUp = /^(yana|qolgan|ular|ularning|shular|hammasi|batafsil|nechta|qaysilar|ro.yxat|ularni|birinchi|ikkinchi|u[ .])/.test(question.trim()) ||
     /^(bugun|kecha|shu oy)([-– ]?chi)?[?.!\s]*$/.test(question.trim());
-  const topic = followsUp ? previousQuestion + ' ' + question : question;
+  const topic = followsUp ? messages.filter(item => item.role === 'user').map(item => item.text).join(' ') : question;
   let context = null;
   if (isStore) {
     const { data, error: workspaceError } = await db.rpc('store_workspace').abortSignal(AbortSignal.timeout(6500));
     context = workspaceError || !data ? { holat: 'Do‘kon ma’lumotlarini hozir yuklab bo‘lmadi' } : {
       timezone: 'Asia/Tashkent',
       today: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date()),
-      stats: data.stats, debts: data.debts,
+      stats: data.stats, debts: data.debts, companies: data.companies,
+      profile: { name: data.profile?.name, legal_type: data.profile?.legal_type, area_id: data.profile?.area_id },
       orders_shown: Math.min(data.orders.length, 20), total_orders: data.orders.length,
-      latest_orders: data.orders.slice(0, 20).map(({ company_name, product, quantity, order_unit, status, expected_delivery_date, decision, created_at }) =>
-        ({ company_name, product, quantity, order_unit, status, expected_delivery_date, decision, created_at })),
+      latest_orders: data.orders.slice(0, 20).map(({ company_name, product, quantity, order_unit, status, order_number, expected_delivery_date, decision, created_at }) =>
+        ({ company_name, product, quantity, order_unit, status, order_number, expected_delivery_date, decision, created_at })),
     };
   } else {
     context = await loadChatContext({ db, company, role, topic, advice: advice || (followsUp && adviceRequest(previousQuestion)) });
@@ -72,7 +74,17 @@ export async function POST(request) {
     contents.at(-1).parts.push({ text: 'BOSHQA serveridan joriy, faqat o‘qish uchun olingan ma’lumot (JSON):\n' + JSON.stringify(context) });
   }
 
+  const commands = {
+    owner: '/amal inventar <hujjat UUID> tasdiq',
+    manager: '/amal inventar <hujjat UUID> tasdiq',
+    supplier: '/amal yetkaz <BQ-raqam> shipped yoki delivered',
+    customer: '/amal bogla <do‘kon ID>',
+    store: '/amal qabul <BQ-raqam> ha yoki yoq',
+    admin: '/amal holat <company yoki store> <UUID> <active yoki frozen>',
+  };
+  const wantsAction = /o.zgartir|tasdiqla|rad et|belgila|jo.nat|bog.la|muzlat|faollashtir/i.test(question);
   const result = await generateAi({
+    json: wantsAction,
     instructions: 'Siz BOSHQA yordamchisisiz. O‘zbek tilida qisqa, aniq va yoshga mos javob bering. ' +
       roleContext[role] +
       ' Oddiy savollarga ham javob bering. AI nomi so‘ralsa, Google Gemini orqali ishlashingizni ayting. Javobni o‘qilishi oson qisqa paragraflar va kerak bo‘lsa raqamlangan ro‘yxatga bo‘ling. ' +
@@ -85,9 +97,21 @@ export async function POST(request) {
       'Narxi saqlanmagan buyurtmalar summaga kirmaydi. Buyurtmalar bo‘lsa-yu narxlilari nol bo‘lsa, summa noma’lumligini ayting. Davr yoki ma’lumot yetishmasa, chegarani tushuntiring. ' +
       'Qarzda to‘langan summani faqat tasdiqlangan yozuvga qarab ayting. Qarzning muddati va qolgan summasini ko‘rsating. ' +
       'Ma’lumot mavjud yoki ruxsat etilgan bo‘lsa, bazaga kirishim yo‘q deb javob bermang. Ma’lumot taqdim etilmagan bo‘lsa, raqam to‘qimang. ' +
-      'Saytda hech qanday yozish, o‘zgartirish yoki o‘chirish amalini bajara olmaysiz. Maxfiy ma’lumot yoki parol so‘ramang.',
+      'Amal bajarilgan deb aytmang. O‘zgartirish so‘ralganda joriy rol uchun quyidagi aniq buyruq shaklini ko‘rsating: ' + commands[role] +
+
+      '. ID yoki raqam mavjud bo‘lmasa aniqlashtiring. Foydalanuvchi ekrandagi amalni tasdiqlaydi. Maxfiy ma’lumot yoki parol so‘ramang.' +
+      (wantsAction ? ' Faqat JSON qaytaring: {"text":"izoh","command":null}. Amal aniq so‘ralgan va shakli to‘liq bo‘lsa command qiymatiga /amal buyruqni yozing.' : ''),
     contents,
   });
   if (result.error) return failure(result.error, result.unconfigured || result.temporary ? 503 : 502);
-  return Response.json({ text: result.text.slice(0, 3500), model: result.model });
+  if (!wantsAction) return Response.json({ text: result.text.slice(0, 3500), model: result.model });
+  let parsed;
+  try { parsed = JSON.parse(result.text); } catch { return failure('AI amal taklifini o‘qib bo‘lmadi.', 502); }
+  const command = typeof parsed?.command === 'string' && parsed.command.length <= 300 ? parseChatAction(parsed.command) : null;
+  const action = command ? await resolveChatAction(db, role, company, command) : null;
+  return Response.json({
+    text: typeof parsed?.text === 'string' ? parsed.text.slice(0, 3500) : 'Amalni aniqlashtiring.',
+    model: result.model,
+    ...(action ? { action: { text: parsed.command, label: action.label } } : {}),
+  });
 }
