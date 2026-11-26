@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Building2, Package, ShoppingBasket } from 'lucide-react';
+import { ArrowUpRight, Building2, Minus, Package, Plus, ShoppingBasket } from 'lucide-react';
 import { formatMoney } from './sales';
 
 export async function withImages(db, rows, field) {
@@ -14,15 +14,17 @@ export async function withImages(db, rows, field) {
 export function useBasket() {
   const [items, setItems] = useState([]);
   const request = useRef({});
-  function change(company, product, quantity) {
+  function change(company, product, value) {
     request.current[company.id] = undefined;
     setItems(previous => {
+      const current = previous.find(line => line.product.id === product.id && line.company.id === company.id)?.quantity || 0;
+      const quantity = typeof value === 'function' ? value(current) : value;
       const rest = previous.filter(line => line.product.id !== product.id || line.company.id !== company.id);
       return quantity ? [...rest, { company, product, quantity }] : rest;
     });
   }
-  function add(company, product) {
-    change(company, product, (items.find(line => line.company.id === company.id && line.product.id === product.id)?.quantity || 0) + 1);
+  function adjust(company, product, delta) {
+    change(company, product, quantity => Math.min(1000000, Math.max(0, quantity + delta)));
   }
   async function checkout(company, shop, db) {
     const contents = items.filter(line => line.company.id === company);
@@ -38,13 +40,14 @@ export function useBasket() {
     setItems(previous => previous.filter(line => line.company.id !== company));
     delete request.current[company];
   }
-  return { items, add, change, checkout };
+  return { items, adjust, change, checkout };
 }
 
 const price = (item, quantity = 1) => Math.round(Number(item.price) * (100 - (item.discount || 0)) * quantity) / 100;
 
-export function ProductCards({ products, onAdd }) {
+export function ProductCards({ products, basket, company }) {
   const [query, setQuery] = useState('');
+  const quantities = new Map(basket.items.filter(line => line.company.id === company.id).map(line => [line.product.id, line.quantity]));
   const shown = products.filter(item => item.price != null && item.name.toLowerCase().includes(query.trim().toLowerCase()));
   return <section className="market-section">
     <div className="panel-heading"><h2>Mahsulotlar</h2>
@@ -55,13 +58,18 @@ export function ProductCards({ products, onAdd }) {
       <div className="market-body">
         <strong>{formatMoney(price(product))} / {product.unit || 'dona'}</strong>
         <h3>{product.name}</h3>
-        <button type="button" className="action" onClick={() => onAdd(product)}><ShoppingBasket size={17} aria-hidden="true" /> Savatga qo‘shish</button>
+        {quantities.has(product.id) ? <div className="market-stepper">
+          <button type="button" aria-label={product.name + ' miqdorini kamaytirish'} onClick={() => basket.adjust(company, product, -1)}><Minus size={18} /></button>
+          <output aria-label={product.name + ' savatdagi miqdori'}>{quantities.get(product.id)}</output>
+          <button type="button" aria-label={product.name + ' miqdorini oshirish'} disabled={quantities.get(product.id) >= 1000000}
+            onClick={() => basket.adjust(company, product, 1)}><Plus size={18} /></button>
+        </div> : <button type="button" className="action" onClick={() => basket.adjust(company, product, 1)}><ShoppingBasket size={17} aria-hidden="true" /> Savatga qo‘shish</button>}
       </div>
     </article>)}</div> : <p>Mahsulot topilmadi.</p>}
   </section>;
 }
 
-export function StoreMarket({ db, onAdd }) {
+export function StoreMarket({ db, basket }) {
   const [firms, setFirms] = useState(null);
   const [sector, setSector] = useState('');
   const [selected, setSelected] = useState(null);
@@ -97,7 +105,7 @@ export function StoreMarket({ db, onAdd }) {
       <h2>{selected.name}</h2>
       <p>{[selected.legal_type, selected.legal_name, selected.sector, selected.legal_address, selected.contact].filter(Boolean).join(' · ')}</p>
     </section>
-    {catalog ? <ProductCards products={catalog} onAdd={product => onAdd(selected, product)} /> : <p role="status">{error || 'Mahsulotlar yuklanmoqda…'}</p>}
+    {catalog ? <ProductCards products={catalog} basket={basket} company={selected} /> : <p role="status">{error || 'Mahsulotlar yuklanmoqda…'}</p>}
   </>;
   const sectors = [...new Set(firms.map(firm => firm.sector).filter(Boolean))];
   return <section className="market-section">

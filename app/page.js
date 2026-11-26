@@ -147,6 +147,12 @@ function ChangePassword({ session }) {
 
 export default function Page() {
   const [session, setSession] = useState(undefined);
+  const [intro, setIntro] = useState(true);
+  useEffect(() => {
+    if (session !== null) return;
+    const timer = setTimeout(() => setIntro(false), 2750);
+    return () => clearTimeout(timer);
+  }, [session]);
   useEffect(() => {
     if (!db) return;
     const { data: { subscription } } = db.auth.onAuthStateChange((_event, current) => setSession(current));
@@ -157,7 +163,10 @@ export default function Page() {
     return <AuthCard title="Hisobga kirish" description="Ilovani ishga tushirish uchun Supabase loyiha manzili va ochiq kalitini sozlang." />;
   }
   if (session === undefined) return <AuthCard title="Hisobga kirish"><p role="status">Hisob yuklanmoqda…</p></AuthCard>;
-  if (!session) return <Auth />;
+  if (!session) return <>
+    <Auth />
+    {intro && <div className="brand-intro" aria-hidden="true"><span>boshqa<span>.</span></span></div>}
+  </>;
   if (session.user.app_metadata.must_change_password === true) return <ChangePassword session={session} />;
   if (session.user.app_metadata.boshqa_kind === 'store') return <StoreWorkspace key={session.user.id} db={db} session={session} />;
   return <Workspace key={session.user.id} session={session} />;
@@ -443,10 +452,8 @@ function Company({ member, token, view, selectView }) {
     </section>}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && role === 'supplier' && <ProductList products={products} />}
-    {role === 'customer' && (view === 'orders' || view === 'catalog') && <ProductCards products={products} onAdd={product => {
-      basket.add({ id, name: member.companies.name }, product);
-      setNotice(product.name + ' savatga qo‘shildi.');
-    }} />}
+    {role === 'customer' && (view === 'orders' || view === 'catalog') && <ProductCards products={products}
+      basket={basket} company={{ id, name: member.companies.name }} />}
     {role === 'customer' && view === 'basket' && <Basket db={db} basket={basket} shops={shops} initialShop={orderShop} onSent={load} />}
     {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} editProduct={setEditingProductId} />}
     {view === 'ai' && manages && <section>

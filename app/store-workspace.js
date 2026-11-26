@@ -114,10 +114,7 @@ export default function StoreWorkspace({ db, session }) {
       </div>
     </>}
     {data&&view==='receivables'&&<section><h2>Firmalar bo‘yicha qarzlar</h2><DebtTable debts={data.debts}/></section>}
-    {data&&view==='companies'&&<StoreMarket db={db} onAdd={(firm, product) => {
-      basket.add(firm, product);
-      setNotice(product.name + ' savatga qo‘shildi.');
-    }}/>}
+    {data&&view==='companies'&&<StoreMarket db={db} basket={basket}/>}
     {data&&view==='basket'&&<Basket db={db} basket={basket} profile={profile} onSent={load}/>}
     {data&&view==='orders'&&<section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2><div className="staff-controls">
