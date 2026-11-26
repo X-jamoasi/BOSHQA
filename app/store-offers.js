@@ -18,7 +18,7 @@ function useAreas(db) {
   return { areas, error };
 }
 
-export function AreaFields({ areas, region, setRegion, area, setArea, optional }) {
+function AreaFields({ areas, region, setRegion, area, setArea, optional }) {
   const regions = [...new Set(areas.map(item => item.region))];
   return <>
     <label>Viloyat yoki respublika/shahar

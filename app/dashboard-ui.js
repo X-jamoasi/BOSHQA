@@ -120,7 +120,7 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
     </header>
     <main className="workspace-main" inert={mobile && collapsed}>
       {title && <div className="breadcrumb">{company?.name || 'Platforma'} <span aria-hidden="true">/</span> {title}</div>}
-      <div className="workspace-view" data-view={view}>{children}</div>
+      <div className="workspace-view">{children}</div>
       {assistant}
     </main>
     {mobile && links.length > 0 && <nav className="mobile-dock" aria-label="Tezkor bo‘limlar" inert={collapsed}>

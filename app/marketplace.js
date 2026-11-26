@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Building2, Minus, Package, Plus, ShoppingBasket } from 'lucide-react';
 import { formatMoney } from './sales';
 
-export async function withImages(db, rows, field) {
+async function withImages(db, rows, field) {
   const paths = [...new Set(rows.map(row => row[field]).filter(Boolean))];
   const result = paths.length ? await db.storage.from('product-images').createSignedUrls(paths, 3600) : null;
   const urls = new Map(result?.data?.map(item => [item.path, item.signedUrl]));
