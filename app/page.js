@@ -308,9 +308,11 @@ function Company({ member, token, view, selectView }) {
   },[id,manages]);
 
   async function load() {
+    const orderFields = 'id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude,expected_delivery_date,shop_id';
+    const orderQuery = fields => db.from('orders').select(fields).eq('company_id', id).order('created_at', { ascending: false });
     const [inventory, orderRows, suppliers, catalog, shops, discounts, totals, decisions] = await Promise.all([
       manages ? read(db.rpc('inventory', { p_company: id })) : [],
-      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude,expected_delivery_date,shop_id').eq('company_id', id).order('created_at', { ascending: false })),
+      read(orderQuery(orderFields + ',checkout_batch_id').then(result => result.error?.code === '42703' ? orderQuery(orderFields) : result)),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
       read(db.rpc('sales_catalog', { p_company: id })),
       manages || role === 'customer' ? read(db.rpc('market_shop_list', { p_company: id }).then(result => result.error?.code === 'PGRST202' ? db.rpc('shop_directory', { p_company: id }) : result)) : [],
@@ -378,8 +380,15 @@ function Company({ member, token, view, selectView }) {
   const { products, orders, suppliers, shops, discounts } = snapshot;
   const productNames = new Map(products.map(item => [item.id, item.name]));
   const query = orderSearch.trim().toLowerCase();
-  const visibleOrders = orders.filter(order => (!orderFilter || order.status === orderFilter) &&
-    (!query || [productNames.get(order.product_id), order.shop_name, order.delivery_address].some(value => value?.toLowerCase().includes(query))));
+  const groups = new Map();
+  for (const order of orders) {
+    const key = manages && order.status === 'pending' && order.checkout_batch_id ? order.checkout_batch_id : order.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(order);
+  }
+  const visibleOrders = [...groups.values()].filter(lines => (!orderFilter || lines[0].status === orderFilter) &&
+    (!query || lines.some(order => [productNames.get(order.product_id), order.shop_name, order.delivery_address]
+      .some(value => value?.toLowerCase().includes(query)))));
   const addingProduct = view === 'add-product' && manages;
   const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
   const productDrawerOpen = addingProduct || Boolean(editingProduct);
@@ -493,12 +502,17 @@ function Company({ member, token, view, selectView }) {
       </div></div>
       {visibleOrders.length ? <div className="table"><table>
         <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Do‘kon va manzil</th>{role !== 'supplier' && <th>Yakuniy narx</th>}<th>Holat</th>{role !== 'customer' && <th>Amal</th>}</tr></thead>
-        <tbody>{visibleOrders.map(order => <tr key={order.id}>
-          <td>{products.find(item => item.id === order.product_id)?.name}</td><td>{order.quantity} {order.order_unit || ''}</td>
+        <tbody>{visibleOrders.map(lines => {
+          const order = lines[0];
+          const total = lines.some(line => line.order_total == null) ? null : lines.reduce((sum, line) => sum + Number(line.order_total), 0);
+          return <tr key={order.id}>
+          <td>{lines.length > 1 ? <ul className="order-batch-items">{lines.map(line =>
+            <li key={line.id}>{productNames.get(line.product_id) || 'Mahsulot'} · {line.quantity} {line.order_unit}</li>)}</ul> : productNames.get(order.product_id)}</td>
+          <td>{lines.length > 1 ? lines.length + ' tur' : [order.quantity, order.order_unit].filter(Boolean).join(' ')}</td>
           <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.shop_name && <><strong>{order.shop_name}</strong><br /></>}{order.delivery_address}
             <MapChoices latitude={order.delivery_latitude} longitude={order.delivery_longitude} />
           </td>
-          {role !== 'supplier' && <td>{formatMoney(order.order_total)}{order.discount_percent > 0 && <small> · −{order.discount_percent}%</small>}</td>}
+          {role !== 'supplier' && <td>{formatMoney(total)}{lines.length === 1 && order.discount_percent > 0 && <small> · −{order.discount_percent}%</small>}</td>}
           <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge>
             {order.expected_delivery_date && <div>Muddat {order.expected_delivery_date}</div>}
             {order.decision && <div>{order.decision === 'accepted' ? 'Do‘kon qabul qildi' : 'Do‘kon rad etdi'}{order.note && <p>{order.note}</p>}</div>}
@@ -510,7 +524,7 @@ function Company({ member, token, view, selectView }) {
               selectView('receivables');
             }}>To‘lovni ko‘rish →</button>}
           </td>}
-        </tr>)}</tbody>
+        </tr>; })}</tbody>
       </table></div> : <PanelState>{orderFilter || query ? 'Filtrga mos buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</PanelState>}
     </section>}
   </>;
@@ -593,16 +607,19 @@ function OrderActions({ company, order, manages, suppliers, disabled, change }) 
   const move = (next, supplier = null) => change('advance_order', {
     p_order: order.id, p_next: next, p_supplier: supplier,
   });
+  const reviewBatch = (accept, supplier = null, expected = null) => change('review_checkout_batch', {
+    p_company: company, p_batch: order.checkout_batch_id, p_accept: accept, p_supplier: supplier, p_expected: expected,
+  });
   if (manages && order.status === 'pending') return <>
     {order.direction === 'outbound'
-      ? suppliers.length > 0 && <Form label="Tasdiqlash" onSubmit={fields => change('approve_shop_delivery', {
+      ? suppliers.length > 0 && <Form label="Tasdiqlash" onSubmit={fields => order.checkout_batch_id ? reviewBatch(true, fields.get('supplier'), fields.get('expected') || null) : change('approve_shop_delivery', {
         p_company: company, p_order: order.id, p_supplier: fields.get('supplier'), p_expected: fields.get('expected') || null,
       })}>
         <SupplierSelect suppliers={suppliers} />
         <label>Yetkazish muddati<input type="date" name="expected" /></label>
       </Form>
       : <button className="action" disabled={disabled} onClick={() => move('approved')}>Tasdiqlash</button>}
-    <button className="action" disabled={disabled} onClick={() => move('rejected')}>Rad etish</button>
+    <button className="action" disabled={disabled} onClick={() => order.checkout_batch_id ? reviewBatch(false) : move('rejected')}>Rad etish</button>
   </>;
   if (!manages && order.status === 'approved') {
     return <button className="action" disabled={disabled} onClick={() => move('shipped')}>Jo‘natish</button>;

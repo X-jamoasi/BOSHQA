@@ -579,3 +579,6 @@ body:has(.auth-card :focus-visible) .brand-intro { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .workspace-frame *, .product-drawer[open] { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; }
 }
+
+.order-batch-items { margin: 0; padding-inline-start: 16px; min-width: 130px; }
+.order-batch-items li + li { margin-top: 4px; }
