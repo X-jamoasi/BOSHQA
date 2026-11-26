@@ -79,10 +79,10 @@ export default function StoreWorkspace({ db, session }) {
   return <DashboardShell links={data?links:[]} view={view} selectView={setView}
     name={session.user.user_metadata?.full_name||accountLogin(session.user)||'Do‘kon egasi'} role="Do‘kon egasi"
     company={profile} companies={[]} signOut={()=>db.auth.signOut()} openAI={data?()=>setAiSignal(value=>value+1):undefined}
-    assistant={data&&<AiChat company={null} role="store" token={session.access_token} home={view==='overview'} standalone={view==='assistant'} openSignal={aiSignal} />}>
+    assistant={data&&<AiChat company={null} role="store" token={session.access_token} home={view==='overview'} openSignal={aiSignal} />}>
     {notice&&<p role="status">{notice}</p>}
     {!data&&(notice?<button className="secondary" onClick={initialize}>Qayta tekshirish</button>:<p role="status">Do‘kon yuklanmoqda…</p>)}
-    {data&&view!=='assistant'&&<header className="page-header"><h1>{links.find(([id])=>id===view)[1]}</h1></header>}
+    {data&&<header className="page-header"><h1>{links.find(([id])=>id===view)[1]}</h1></header>}
     {data&&view==='overview'&&<>
       <Metrics values={[
         ['Shu oy tasdiqlangan xarajat',formatMoney(stats.monthly_expenses),Banknote],

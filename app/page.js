@@ -12,7 +12,7 @@ import SubscriptionPlans from './subscription-plans';
 import TelegramPanel from './telegram-panel';
 import Receivables from './receivables';
 import { AddProduct, Discounts, Shops, MapChoices, formatMoney } from './sales';
-import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
+import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3, ArrowUpRight, AudioLines } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
 import { accountLogin, loginEmail, sectors } from '../lib/accounts';
@@ -229,7 +229,7 @@ function Workspace({ session }) {
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
   const roleLinks = admin ? platformSections : member ? sections.filter(([id, , , allowed]) => id !== 'add-product' && (!allowed || allowed.includes(member.role))) : [];
   const profileTitle = profileTitles[admin ? 'admin' : member?.role] || 'Hisob ma’lumotlari';
-  const links = loaded ? [...roleLinks, ...(roleLinks.length ? [['assistant', 'AI maslahati']] : []), ['profile', profileTitle]] : roleLinks;
+  const links = loaded ? [...roleLinks, ['profile', profileTitle]] : roleLinks;
   const hasPanel = Boolean(member || (loaded && admin));
   return <DashboardShell links={links} view={view === 'add-product' ? 'products' : view} selectView={setView}
     name={session.user.user_metadata?.full_name || accountLogin(session.user) || session.user.email || 'Hisob'}
@@ -237,7 +237,7 @@ function Workspace({ session }) {
     selected={selected} selectCompany={id => { setSelected(id); setView('overview'); setAiSignal(0); }}
     signOut={() => db.auth.signOut().then(({ error }) => { if (error) setNotice(error.message); })}
     openAI={hasPanel ? () => setAiSignal(value => value + 1) : undefined}
-    assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} home={view === 'overview'} standalone={view === 'assistant'}
+    assistant={hasPanel && <AiChat key={member?.company_id || 'platform'} openSignal={aiSignal} home={view === 'overview'}
       company={member?.company_id || null} token={session.access_token} role={admin ? 'admin' : member?.role} />}>
       {notice && <div role="status"><p>{notice}</p>
         {!loaded && <button type="button" className="secondary" onClick={retryWorkspace}>Qayta tekshirish</button>}
@@ -247,8 +247,8 @@ function Workspace({ session }) {
         member={member} title={profileTitle} accountAction={accountAction}
         onCompanySaved={(id, company) => setMemberships(items => items.map(item =>
           item.company_id === id ? { ...item, companies: { ...item.companies, ...company } } : item))} />}
-      {loaded && admin && view !== 'assistant' && view !== 'profile' && <Platform db={db} view={view} />}
-      {member && view !== 'assistant' && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
+      {loaded && admin && view !== 'profile' && <Platform db={db} view={view} />}
+      {member && view !== 'profile' && <Company key={member.company_id} member={member} token={session.access_token} view={view} selectView={setView} />}
       {loaded && !selected && view !== 'profile' && <p role="status">Hisobingizga korxona biriktirilmagan. Sahifani yangilab ko‘ring. Holat o‘zgarmasa, platforma egasiga loginni yuboring.</p>}
   </DashboardShell>;
 }
@@ -377,7 +377,7 @@ function Company({ member, token, view, selectView }) {
       <div><h1>{view === 'overview' ? heading[role] : addingProduct ? 'Ombor' : sections.find(item => item[0] === view)[1]}</h1>
         {view === 'overview' && <p>Buyurtmalar va korxona faoliyatining joriy holati</p>}</div>
       {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
-      <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
+      {view !== 'agent' && <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>}
     </header>
     {overdue>0&&view!=='receivables'&&<div className="debt-banner" role="status">
       <span>{overdue} ta qarzning muddati o‘tgan.</span>
@@ -430,8 +430,14 @@ function Company({ member, token, view, selectView }) {
     {view === 'subscriptions' && role === 'owner' && <SubscriptionPlans company={id} />}
     {view === 'receivables' && <Receivables db={db} company={id} role={role} onUpdated={loadOverdue} initialOrder={receiptOrder} />}
     {view === 'telegram' && ['manager','supplier','customer'].includes(role) && <TelegramPanel company={id} accessToken={token} role={role} />}
-    {view === 'agent' && manages && <section>
-      <h2>Tushum AI</h2><p>Tez kunda…</p>
+    {view === 'agent' && manages && <section className="tushum-section">
+      <div className="tushum-card">
+        <span className="tushum-icon"><AudioLines size={28} aria-hidden="true" /></span>
+        <h2>TUSHUM AI</h2>
+        <a href="https://tushum-ai-production-fe6eb70d.up.railway.app/" target="_blank" rel="noopener noreferrer" className="tushum-link">
+          TUSHUM AI’ni ochish <ArrowUpRight size={17} aria-hidden="true" />
+        </a>
+      </div>
     </section>}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}

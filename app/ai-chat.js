@@ -13,7 +13,7 @@ const prompts = {
   admin: ['Platforma faolligi qanday?', 'AI monitoringda nimalarga e’tibor beray?'],
 };
 
-export default function AiChat({ company, token, openSignal, standalone, home, role }) {
+export default function AiChat({ company, token, openSignal, home, role }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
@@ -21,29 +21,16 @@ export default function AiChat({ company, token, openSignal, standalone, home, r
   const [error, setError] = useState('');
   const input = useRef(null);
   const launcher = useRef(null);
-  const panel = useRef(null);
   const thread = useRef(null);
   const instance = useId();
   const lastSignal = useRef(0);
-  const embedded = home || standalone;
-  const visible = embedded || open;
-
-  function reveal() {
-    if (embedded) {
-      panel.current?.scrollIntoView({ block: 'start' });
-      input.current?.focus({ preventScroll: true });
-    } else {
-      setOpen(true);
-    }
-  }
-
   useEffect(() => {
-    if (openSignal && openSignal !== lastSignal.current) reveal();
+    if (openSignal && openSignal !== lastSignal.current) setOpen(true);
     lastSignal.current = openSignal;
   }, [openSignal]);
 
   useEffect(() => {
-    if (embedded || !open) return;
+    if (!open) return;
     input.current?.focus();
     function onKeyDown(event) {
       if (event.key === 'Escape') {
@@ -53,11 +40,11 @@ export default function AiChat({ company, token, openSignal, standalone, home, r
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, embedded]);
+  }, [open]);
 
   useEffect(() => {
-    if (visible && thread.current) thread.current.scrollTop = thread.current.scrollHeight;
-  }, [messages, pending, error, visible]);
+    if (open && thread.current) thread.current.scrollTop = thread.current.scrollHeight;
+  }, [messages, pending, error, open]);
 
   async function send(text) {
     text = text.trim();
@@ -92,48 +79,53 @@ export default function AiChat({ company, token, openSignal, standalone, home, r
     launcher.current?.focus();
   }
 
-  return <div className={embedded ? 'ai-workspace' : 'ai-widget'}>
-    {visible && <section ref={panel} className="ai-window" id={instance} aria-labelledby={instance + '-title'}>
-      <div className="ai-window-title">
-        <span className="ai-brand-icon"><Sparkles size={21} aria-hidden="true" /></span>
-        <div><h2 id={instance + '-title'}>{standalone && role === 'store' ? 'AI nazorati' : 'AI maslahati'}</h2><small>Google Gemini</small></div>
-        <button type="button" className="secondary ai-advice" disabled={Boolean(pending)} onClick={() => send(advicePrompt)}>
-          <ChartNoAxesCombined size={17} aria-hidden="true" /> Bugungi tavsiyalar
-        </button>
-        {!embedded && <button type="button" className="secondary ai-close" onClick={close} aria-label="AI yordamchini yopish"><X size={18} /></button>}
-      </div>
-      <div ref={thread} className="ai-thread" role="log" aria-live="polite">
-        {!messages.length && !pending && <div className="ai-welcome">
-          <p>Ma’lumotlaringizni tahlil qiling yoki savol bering.</p>
-          <div className="ai-suggestions">
-            {(prompts[role] || prompts.admin).map(prompt => <button type="button" key={prompt} className="secondary"
-              onClick={() => { setQuestion(prompt); input.current?.focus(); }}>{prompt}</button>)}
-          </div>
-        </div>}
-        {[...messages, ...(pending ? [{ role: 'user', text: pending }] : [])].map(({ role, text, model }, index) =>
-          <article key={index} className={'ai-message ' + role}>
-            <strong>{role === 'user' ? 'Siz' : 'BOSHQA AI'}</strong>
-            <p>{text}</p>
-            {model && <small>{model}</small>}
-          </article>)}
-        {pending && <p className="ai-progress" role="status"><LoaderCircle size={16} aria-hidden="true" /> Gemini javob tayyorlamoqda…</p>}
-        {error && <p className="ai-error" role="alert">{error}</p>}
-      </div>
-      <form className="ai-compose" onSubmit={event => { event.preventDefault(); send(question); }}>
-        <textarea ref={input} aria-label="Savolingiz" value={question} maxLength={1000} readOnly={Boolean(pending)} rows={2}
-          onChange={event => setQuestion(event.target.value)} placeholder="Savolingizni yozing…"
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              event.currentTarget.form.requestSubmit();
-            }
-          }} required />
-        <button className="action" aria-label="Yuborish" title="Yuborish" disabled={Boolean(pending) || !question.trim()}><ArrowUp size={19} /></button>
-      </form>
+  return <>
+    {home && <section className="ai-home-summary">
+      <div><h2>AI maslahati</h2><p>Qarzlar, buyurtmalar va panelingizdagi ma’lumotlarni tahlil qiling.</p></div>
+      <button type="button" className="secondary" onClick={() => { setOpen(true); send(advicePrompt); }}>
+        <Sparkles size={16} aria-hidden="true" /> Bugungi tavsiyalar
+      </button>
     </section>}
-    {!standalone && <button ref={launcher} className={'action ai-launcher' + (home ? ' ai-launcher-home' : '')} type="button"
-      aria-expanded={embedded ? undefined : open} aria-controls={visible ? instance : undefined} onClick={() => open && !embedded ? close() : reveal()}>
-      <MessageCircle size={18} aria-hidden="true" /> AI yordamchi
-    </button>}
-  </div>;
+    <div className="ai-widget">
+      {open && <section className="ai-window" id={instance} aria-labelledby={instance + '-title'}>
+        <div className="ai-window-title">
+          <span className="ai-brand-icon"><Sparkles size={21} aria-hidden="true" /></span>
+          <div><h2 id={instance + '-title'}>AI yordamchi</h2><small>Google Gemini</small></div>
+          <button type="button" className="secondary ai-advice" disabled={Boolean(pending)} onClick={() => send(advicePrompt)}>
+            <ChartNoAxesCombined size={17} aria-hidden="true" /> Bugungi tavsiyalar
+          </button>
+          <button type="button" className="secondary ai-close" onClick={close} aria-label="AI yordamchini yopish"><X size={18} /></button>
+        </div>
+        <div ref={thread} className="ai-thread" role="log" aria-live="polite">
+          {!messages.length && !pending && <div className="ai-suggestions">
+              {(prompts[role] || prompts.admin).map(prompt => <button type="button" key={prompt} className="secondary"
+                onClick={() => { setQuestion(prompt); input.current?.focus(); }}>{prompt}</button>)}
+          </div>}
+          {[...messages, ...(pending ? [{ role: 'user', text: pending }] : [])].map(({ role, text, model }, index) =>
+            <article key={index} className={'ai-message ' + role}>
+              <strong>{role === 'user' ? 'Siz' : 'BOSHQA AI'}</strong>
+              <p>{text}</p>
+              {model && <small>{model}</small>}
+            </article>)}
+          {pending && <p className="ai-progress" role="status"><LoaderCircle size={16} aria-hidden="true" /> Gemini javob tayyorlamoqda…</p>}
+          {error && <p className="ai-error" role="alert">{error}</p>}
+        </div>
+        <form className="ai-compose" onSubmit={event => { event.preventDefault(); send(question); }}>
+          <textarea ref={input} aria-label="Savolingiz" value={question} maxLength={1000} readOnly={Boolean(pending)} rows={2}
+            onChange={event => setQuestion(event.target.value)} placeholder="Savolingizni yozing…"
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.form.requestSubmit();
+              }
+            }} required />
+          <button className="action" aria-label="Yuborish" title="Yuborish" disabled={Boolean(pending) || !question.trim()}><ArrowUp size={19} /></button>
+        </form>
+      </section>}
+      <button ref={launcher} className="action ai-launcher" type="button"
+        aria-expanded={open} aria-controls={open ? instance : undefined} onClick={() => open ? close() : setOpen(true)}>
+        <MessageCircle size={18} aria-hidden="true" /> AI yordamchi
+      </button>
+    </div>
+  </>;
 }
