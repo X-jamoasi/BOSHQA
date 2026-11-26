@@ -175,7 +175,6 @@ export default function Page() {
 const sections = [
   ['overview', 'Umumiy ko‘rinish', '▦'],
   ['products', 'Ombor', '◈', ['owner', 'manager']],
-  ['add-product', 'Mahsulot qo‘shish', '', ['owner', 'manager']],
   ['shops', 'Do‘konlar', '', ['owner', 'manager', 'customer']],
   ['discounts', 'Chegirmalar', '', ['owner', 'manager']],
   ['subscriptions', 'Obunalar', '', ['owner']],
@@ -238,7 +237,7 @@ function Workspace({ session }) {
   }
 
   const member = loaded && !admin ? memberships.find(item => item.company_id === selected) : null;
-  const roleLinks = admin ? platformSections : member ? sections.filter(([id, , , allowed]) => id !== 'add-product' && (!allowed || allowed.includes(member.role))) : [];
+  const roleLinks = admin ? platformSections : member ? sections.filter(([, , , allowed]) => !allowed || allowed.includes(member.role)) : [];
   const profileTitle = profileTitles[admin ? 'admin' : member?.role] || 'Hisob ma’lumotlari';
   const links = loaded ? [...roleLinks, ['profile', profileTitle]] : roleLinks;
   const hasPanel = Boolean(member || (loaded && admin));
