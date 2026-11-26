@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import BrandWordmark from './brand';
 import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, PackagePlus, Percent } from 'lucide-react';
 
 const icons = {
@@ -62,7 +63,7 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
 
   return <div className={'workspace-frame' + (collapsed ? ' sidebar-toggled' : '')}>
     <aside className="workspace-sidebar" id="workspace-navigation">
-      <div className="wordmark" aria-label="boshqa.">boshqa.</div>
+      <BrandWordmark />
       <nav aria-label="Boshqaruv bo‘limlari">{links.map(([id, label]) => {
         const Icon = id === 'overview' && !company ? LayoutGrid : icons[id] || ClipboardList;
         return <button key={id} title={label} aria-label={label} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>

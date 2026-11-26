@@ -2,6 +2,7 @@ import '@fontsource-variable/inter';
 import './style.css';
 
 export const metadata = {
+  metadataBase: new URL('https://boshqa-iota.vercel.app'),
   title: 'BOSHQA — Ombor va buyurtmalar',
   description: 'Ishlab chiqarish korxonalari uchun ombor va buyurtma boshqaruvi',
 };

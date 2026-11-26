@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
+import BrandWordmark from './brand';
 import Profile from './profile';
 import StaffDirectory from './staff-directory';
 import ProductList from './product-list';
@@ -70,7 +71,7 @@ function Auth() {
   const [signup, setSignup] = useState(false);
   const [notice, setNotice] = useState('');
   return <main>
-    <h1>BOSHQA</h1>
+    <h1 className="auth-brand"><BrandWordmark /></h1>
     <section>
       <h2>{signup ? 'Korxonani ro‘yxatdan o‘tkazish' : 'Hisobga kirish'}</h2>
       <Form key={signup} label={signup ? 'Ro‘yxatdan o‘tish' : 'Kirish'} onSubmit={async fields => {
@@ -110,7 +111,7 @@ function Auth() {
 
 function ChangePassword({ session }) {
   const [notice, setNotice] = useState('');
-  return <main><section>
+  return <main><div className="auth-brand"><BrandWordmark /></div><section>
     <h1>Yangi parol o‘rnating</h1>
     <p>Korxona panelini ochish uchun vaqtinchalik parolni almashtiring.</p>
     <Form label="Parolni almashtirish" onSubmit={async fields => {
@@ -141,7 +142,7 @@ export default function Page() {
   }, []);
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-    return <main><h1>BOSHQA</h1><p>Ilovani ishga tushirish uchun Supabase loyiha manzili va ochiq kalitini sozlang.</p></main>;
+    return <main><h1 className="auth-brand"><BrandWordmark /></h1><p>Ilovani ishga tushirish uchun Supabase loyiha manzili va ochiq kalitini sozlang.</p></main>;
   }
   if (session === undefined) return <main><p>Hisob yuklanmoqda…</p></main>;
   if (!session) return <Auth />;
