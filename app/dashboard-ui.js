@@ -31,14 +31,25 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobile, setMobile] = useState(false);
   const input = useRef(null);
+  const menuButton = useRef(null);
+  const nav = useRef(null);
   const profile = useRef(null);
   const matches = links.filter(([, label]) => label.toLowerCase().includes(search.trim().toLowerCase()));
   const title = links.find(([id]) => id === view)?.[1];
+  const mobileLinks = ['overview', 'orders', 'companies', 'shops', 'products', 'basket'].filter(id => links.some(([key]) => key === id)).slice(0, 4);
+  const shortLabels = { overview: 'Bosh sahifa', orders: 'Buyurtmalar', companies: 'Firmalar', shops: 'Do‘konlar', products: 'Ombor', basket: 'Savat' };
+  function closeMenu() {
+    setCollapsed(false);
+    menuButton.current?.focus();
+  }
   function navigate(id) {
     selectView(id);
     setSearch('');
     setSearchOpen(false);
-    if (mobile) setCollapsed(false);
+    if (mobile) {
+      setCollapsed(false);
+      window.scrollTo(0, 0);
+    }
   }
 
   useEffect(() => {
@@ -53,7 +64,7 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
       }
       if (event.key === 'Escape') {
         setSearchOpen(false);
-        if (query.matches) setCollapsed(false);
+        if (query.matches && nav.current?.contains(document.activeElement)) closeMenu();
         if (profile.current) profile.current.open = false;
       }
     }
@@ -61,9 +72,14 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
     return () => { window.removeEventListener('keydown', shortcut); query.removeEventListener('change', sync); };
   }, []);
 
+  useEffect(() => {
+    if (mobile && collapsed) nav.current?.querySelector('button[aria-current], button')?.focus();
+  }, [mobile, collapsed]);
+
   return <div className={'workspace-frame' + (collapsed ? ' sidebar-toggled' : '')}>
-    <aside className="workspace-sidebar" id="workspace-navigation">
+    <aside ref={nav} className="workspace-sidebar" id="workspace-navigation">
       <BrandWordmark />
+      <button type="button" className="mobile-menu-close secondary" onClick={closeMenu}>Yopish</button>
       <nav aria-label="Boshqaruv bo‘limlari">{links.map(([id, label]) => {
         const Icon = id === 'overview' && !company ? LayoutGrid : icons[id] || ClipboardList;
         return <button key={id} title={label} aria-label={label} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>
@@ -74,9 +90,9 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
         <div><strong>{company.name}</strong>{company.sector && <small>{company.sector}</small>}</div>
       </div>}
     </aside>
-    {collapsed && <button type="button" className="workspace-scrim" aria-label="Menyuni yopish" onClick={() => setCollapsed(false)} />}
-    <header className="workspace-header">
-      <button type="button" className="icon-button" aria-controls="workspace-navigation" aria-expanded={mobile ? collapsed : !collapsed} aria-label="Yon menyuni ochish yoki yopish" onClick={() => setCollapsed(!collapsed)}><Menu size={20} /></button>
+    {collapsed && <button type="button" className="workspace-scrim" aria-label="Menyuni yopish" onClick={closeMenu} />}
+    <header className="workspace-header" inert={mobile && collapsed}>
+      <button ref={menuButton} type="button" className="icon-button" aria-controls="workspace-navigation" aria-expanded={mobile ? collapsed : !collapsed} aria-label="Yon menyuni ochish yoki yopish" onClick={() => setCollapsed(!collapsed)}><Menu size={20} /></button>
       <div className="header-search">
         <form onSubmit={event => { event.preventDefault(); if (matches[0]) navigate(matches[0][0]); }}>
           <Search size={17} aria-hidden="true" /><input ref={input} type="search" aria-label="Bo‘lim qidirish" placeholder="Bo‘lim qidirish..." value={search}
@@ -91,7 +107,7 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
         {companies.length > 1 && <select value={selected} onChange={event => selectCompany(event.target.value)} aria-label="Korxonani tanlash">
           {companies.map(item => <option key={item.company_id} value={item.company_id}>{item.companies.name}</option>)}
         </select>}
-        {openAI && <button type="button" className="action header-ai" onClick={openAI}><Sparkles size={17} /><span>AI yordamchi</span></button>}
+        {openAI && <button type="button" className="action header-ai" aria-label="AI yordamchi" onClick={openAI}><Sparkles size={17} /><span>AI yordamchi</span></button>}
         <details className="profile-menu" ref={profile}>
           <summary><span className="avatar" aria-hidden="true">{name.slice(0, 2).toUpperCase()}</span>
             <span className="profile-label"><strong>{name}</strong><small>{role}</small></span><ChevronDown size={16} aria-hidden="true" />
@@ -100,11 +116,22 @@ export function DashboardShell({ links, view, selectView, name, role, company, c
         </details>
       </div>
     </header>
-    <main className="workspace-main">
+    <main className="workspace-main" inert={mobile && collapsed}>
       {title && <div className="breadcrumb">{company?.name || 'Platforma'} <span aria-hidden="true">/</span> {title}</div>}
       {children}
       {assistant}
     </main>
+    {mobile && links.length > 0 && <nav className="mobile-dock" aria-label="Tezkor bo‘limlar" inert={collapsed}>
+      {mobileLinks.map(id => {
+        const Icon = icons[id];
+        return <button key={id} type="button" aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>
+          <Icon size={20} aria-hidden="true" /><span>{shortLabels[id]}</span>
+        </button>;
+      })}
+      <button type="button" onClick={() => setCollapsed(true)} aria-controls="workspace-navigation" aria-expanded={collapsed}>
+        <Menu size={20} aria-hidden="true" /><span>Menyu</span>
+      </button>
+    </nav>}
   </div>;
 }
 
