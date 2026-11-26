@@ -1,14 +1,42 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, X } from 'lucide-react';
+import { LocateFixed, ImagePlus, X } from 'lucide-react';
+import { mapLinks } from '../lib/maps';
 
 export const units = ['dona','blok','kg','qop','tonna','litr','metr','quti','paket','juft'];
 const money = new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 2 });
-export const mapUrl = (latitude, longitude) => 'https://www.google.com/maps?q=' + encodeURIComponent(latitude + ',' + longitude);
+export function MapChoices({ latitude, longitude }) {
+  const links=mapLinks(latitude,longitude);
+  if(!links.length) return null;
+  return <details className="map-choices"><summary>Xaritada ochish</summary>
+    <div>{links.map(([name,url])=><a key={name} href={url} target="_blank" rel="noreferrer">{name}</a>)}</div>
+  </details>;
+}
 export const formatMoney = value => value == null ? '—' : money.format(value) + ' so‘m';
 
 export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
+  const [gps,setGps]=useState('');
+  const [capturing,setCapturing]=useState(false);
+  const lat=useRef(null);
+  const lng=useRef(null);
+
+  function captureLocation() {
+    if(!navigator.geolocation) { setGps('Bu brauzer GPS’ni qo‘llamaydi. Koordinatalarni qo‘lda kiriting.'); return; }
+    setCapturing(true);
+    setGps('');
+    navigator.geolocation.getCurrentPosition(({coords})=>{
+      if(lat.current&&lng.current) {
+        lat.current.value=coords.latitude.toFixed(6);
+        lng.current.value=coords.longitude.toFixed(6);
+        setGps('Joylashuv olindi. Saqlashdan oldin do‘kon manzilini tekshiring.');
+      }
+      setCapturing(false);
+    },()=>{
+      setCapturing(false);
+      setGps('GPS joylashuvi olinmadi. Brauzer ruxsatini tekshiring yoki koordinatalarni qo‘lda kiriting.');
+    },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+  }
   return <>
     {canAdd && <section>
       <h2>Do‘kon qo‘shish</h2>
@@ -22,10 +50,13 @@ export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
         <label>Firma yoki tadbirkor nomi<input name="legal_name" minLength="2" maxLength="150" required /></label>
         <label>Do‘kon telefoni<input name="phone" type="tel" maxLength="16" placeholder="+998901234567" required /></label>
         <label>Manzil<input name="address" minLength="5" maxLength="250" required /></label>
-        <label>Kenglik<input name="latitude" type="number" step="any" min="-90" max="90" placeholder="40.1158" required /></label>
-        <label>Uzunlik<input name="longitude" type="number" step="any" min="-180" max="180" placeholder="67.8422" required /></label>
+        <label>Kenglik<input ref={lat} name="latitude" type="number" step="any" min="-90" max="90" placeholder="40.1158" required /></label>
+        <label>Uzunlik<input ref={lng} name="longitude" type="number" step="any" min="-180" max="180" placeholder="67.8422" required /></label>
+        <button type="button" className="secondary gps-button" onClick={captureLocation} disabled={capturing}>
+          <LocateFixed size={16} aria-hidden="true" />{capturing?'GPS olinmoqda…':'GPS orqali olish'}
+        </button>
       </Form>
-      <p>Do‘kon joylashuvining kenglik va uzunligini xaritadan ko‘chirib kiriting.</p>
+      <p>{gps || 'GPS tugmasini do‘kon yonida bosing yoki do‘kon koordinatalarini qo‘lda kiriting.'}</p>
     </section>}
     <section>
       <h2>Do‘konlar ro‘yxati</h2>
@@ -34,7 +65,7 @@ export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
         <tbody>{shops.map(shop => <tr key={shop.id}>
           <td>{shop.name}</td><td>{shop.legal_type === 'yatt' ? 'YaTT' : 'MChJ'} · {shop.legal_name}</td>
           <td>{shop.phone}</td><td>{shop.address}</td>
-          <td><a href={mapUrl(shop.latitude, shop.longitude)} target="_blank" rel="noreferrer">Xaritada</a></td>
+          <td><MapChoices latitude={shop.latitude} longitude={shop.longitude} /></td>
           <td>{canAdd ? <button className="text-button" type="button" onClick={() => openOrder(shop.id)}>Buyurtma berish →</button> : shop.agent}</td>
         </tr>)}</tbody>
       </table></div> : <p>Do‘kon hali qo‘shilmagan.</p>}

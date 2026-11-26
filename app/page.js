@@ -8,7 +8,9 @@ import Profile from './profile';
 import StaffDirectory from './staff-directory';
 import ProductList from './product-list';
 import SubscriptionPlans from './subscription-plans';
-import { AddProduct, Discounts, Shops, formatMoney, mapUrl } from './sales';
+import TelegramPanel from './telegram-panel';
+import Receivables from './receivables';
+import { AddProduct, Discounts, Shops, MapChoices, formatMoney } from './sales';
 import { Boxes, ClipboardList, CircleCheck, Truck, TriangleAlert, Clock3 } from 'lucide-react';
 import { DashboardShell, DateWindow, Metrics, StatusBadge, Trend, formatCount, formatDashboardDate } from './dashboard-ui';
 import { makeSupabase } from '../lib/supabase';
@@ -160,6 +162,9 @@ const sections = [
   ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
+  ['receivables', 'Qarzlar', ''],
+  ['telegram', 'Telegram bot', '', ['manager','supplier','customer']],
+  ['agent', 'AI agent', '', ['owner','manager']],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
 ];
 
@@ -262,6 +267,21 @@ function Company({ member, token, view, selectView }) {
   const [newStaff, setNewStaff] = useState(null);
   const [staffRevision, setStaffRevision] = useState(0);
   const [orderShop, setOrderShop] = useState('');
+  const [receiptOrder, setReceiptOrder] = useState(null);
+
+  const [overdue,setOverdue]=useState(0);
+  async function loadOverdue() {
+    if (!manages) return;
+    const { data, error }=await db.rpc('overdue_receivables_count',{p_company:id});
+    if(!error) setOverdue(Number(data)||0);
+  }
+
+  useEffect(()=>{
+    if(!manages) return;
+    loadOverdue();
+    const interval=setInterval(loadOverdue,60000);
+    return ()=>clearInterval(interval);
+  },[id,manages]);
 
   async function load() {
     const [inventory, orderRows, suppliers, catalog, shops, discounts, totals] = await Promise.all([
@@ -345,6 +365,10 @@ function Company({ member, token, view, selectView }) {
       {view === 'overview' && <DateWindow days={days} setDays={setDays} />}
       <button className="secondary" disabled={changing} onClick={() => load().then(() => setNotice('')).catch(error => setNotice(error.message))}>Yangilash</button>
     </header>
+    {overdue>0&&view!=='receivables'&&<div className="debt-banner" role="status">
+      <span>{overdue} ta qarzning muddati o‘tgan.</span>
+      <button className="text-button" type="button" onClick={()=>selectView('receivables')}>Qarzlarni ko‘rish →</button>
+    </div>}
     {notice && !productDrawerOpen && <p role="status">{notice}</p>}
     {view === 'overview' && <Overview products={products} orders={orders} manages={manages} role={role} days={days} selectView={selectView} />}
     {view === 'staff' && role === 'owner' && <>
@@ -390,6 +414,11 @@ function Company({ member, token, view, selectView }) {
       db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
       onClose={() => { setNotice(''); closeProduct(); }} onSaved={closeProduct} />}
     {view === 'subscriptions' && role === 'owner' && <SubscriptionPlans company={id} />}
+    {view === 'receivables' && <Receivables db={db} company={id} role={role} onUpdated={loadOverdue} initialOrder={receiptOrder} />}
+    {view === 'telegram' && ['manager','supplier','customer'].includes(role) && <TelegramPanel company={id} accessToken={token} role={role} />}
+    {view === 'agent' && manages && <section>
+      <h2>Tushum AI</h2><p>Tez kunda…</p>
+    </section>}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
     {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}
     {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} editProduct={setEditingProductId} />}
@@ -441,12 +470,16 @@ function Company({ member, token, view, selectView }) {
         <tbody>{visibleOrders.map(order => <tr key={order.id}>
           <td>{products.find(item => item.id === order.product_id)?.name}</td><td>{order.quantity} {order.order_unit || ''}</td>
           <td>{order.direction === 'inbound' ? 'Xomashyo kirimi' : 'Mijozga yetkazish'}</td><td>{order.shop_name && <><strong>{order.shop_name}</strong><br /></>}{order.delivery_address}
-            {order.delivery_latitude != null && order.delivery_longitude != null && <><br /><a href={mapUrl(order.delivery_latitude, order.delivery_longitude)} target="_blank" rel="noreferrer">Xaritada</a></>}
+            <MapChoices latitude={order.delivery_latitude} longitude={order.delivery_longitude} />
           </td>
           {role !== 'supplier' && <td>{formatMoney(order.order_total)}{order.discount_percent > 0 && <small> · −{order.discount_percent}%</small>}</td>}
           <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td>
           {role !== 'customer' && <td>
             <OrderActions order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
+            {order.status==='delivered'&&order.direction==='outbound'&&<button className="text-button" type="button" onClick={()=>{
+              setReceiptOrder(order.id);
+              selectView('receivables');
+            }}>To‘lovni ko‘rish →</button>}
           </td>}
         </tr>)}</tbody>
       </table></div> : <p>{orderFilter ? 'Bu holatdagi buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</p>}

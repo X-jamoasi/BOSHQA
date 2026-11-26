@@ -33,3 +33,9 @@ Korxona ma’lumotlari alohida bo‘limda ko‘rsatiladi.
 Super admin boshqaruv paneli va Gemini monitoringini yoqish uchun [platforma migratsiyasini](supabase/migrations/202611250004_platform_dashboard.sql) 003-migratsiyadan keyin bajaring. Monitoring faqat yangi tahlil natijalarini qayd etadi. Daromad bo‘limi to‘lov tizimi ulangach ma’lumot ko‘rsatadi.
 
 Paneldagi AI yordamchini yoqish uchun [AI chat migratsiyasini](supabase/migrations/202611250005_ai_chat.sql) bajaring. Chat o‘zbek tilida javob beradi. Chatga savol, shu oynadagi yaqin suhbat va mavzu uchun kerakli, foydalanuvchiga ruxsat etilgan qisqa ma’lumot yuboriladi. Buyurtma manzili va xodimlarning aloqa ma’lumotlari yuborilmaydi. Chat bazadagi ma’lumotlarni o‘zgartira olmaydi.
+
+## Qarzlar va Telegram bot
+
+`202611260001_receivables_telegram.sql` migratsiyasi yetkazilgan buyurtmalar to‘lovini qayd etish, menejer tasdiqlashi va Telegram bog‘lanishini yoqadi. Qarzlar holati Toshkent sanasi bo‘yicha hisoblanadi. Yetkazuvchi yozuvi menejer tasdiqlaguncha tasdiqlangan tushumga qo‘shilmaydi.
+
+Telegram uchun Vercel Production muhitida `TELEGRAM_TOKEN_ENCRYPTION_KEY` nomli maxfiy o‘zgaruvchiga 64 ta o‘n oltilik belgidan iborat tasodifiy qiymat kiriting (masalan, `openssl rand -hex 32` natijasi). BotFather tokenlari shu kalit bilan serverda shifrlanadi. Qiymat almashtirilsa, avvalgi botlarni qayta ulash kerak bo‘ladi. `SUPABASE_SECRET_KEY` ham server muhitida mavjud bo‘lsin. Vercel’da qayta joylagandan keyin menejer, yetkazuvchi va buyurtmachi o‘z panelidan bot tokenini kiritib, 15 daqiqalik bir martalik havola orqali shaxsiy chatni ulashi mumkin. Botda `/orders`, menejer va buyurtmachi uchun `/debts` buyruqlari bor.
