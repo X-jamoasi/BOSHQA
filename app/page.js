@@ -69,14 +69,24 @@ function LoginField() {
     placeholder="Masalan, jizzax_zavod" required /></label>;
 }
 
+function AuthCard({ title, description, children }) {
+  return <main className="auth-page">
+    <section className="auth-card" aria-labelledby="auth-title">
+      <div className="auth-brand"><BrandWordmark /></div>
+      <p className="auth-caption">Boshqaruv paneli</p>
+      <h1 id="auth-title">{title}</h1>
+      {description && <p className="auth-description">{description}</p>}
+      {children}
+    </section>
+  </main>;
+}
+
 function Auth() {
   const [signup, setSignup] = useState(false);
   const [notice, setNotice] = useState('');
-  return <main>
-    <h1 className="auth-brand"><BrandWordmark /></h1>
-    <section>
-      <h2>{signup ? 'Korxonani ro‘yxatdan o‘tkazish' : 'Hisobga kirish'}</h2>
-      <Form key={signup} label={signup ? 'Ro‘yxatdan o‘tish' : 'Kirish'} onSubmit={async fields => {
+  return <AuthCard title={signup ? 'Korxonani ro‘yxatdan o‘tkazish' : 'Hisobga kirish'}
+    description={signup ? 'Korxona panelini yaratish uchun ma’lumotlarni kiriting.' : 'BOSHQA boshqaruv paneliga login va parolingiz bilan kiring.'}>
+      <Form key={signup} label={signup ? 'Ro‘yxatdan o‘tish' : 'Hisobga kirish'} onSubmit={async fields => {
         setNotice('');
         const login = fields.get('login').trim().toLowerCase();
         const password = fields.get('password');
@@ -88,7 +98,7 @@ function Auth() {
           await read(db.auth.signInWithPassword({ email, password }));
           return true;
         } catch (error) {
-          setNotice(error.message);
+          setNotice(error.code === 'invalid_credentials' ? 'Login yoki parol noto‘g‘ri.' : error.message);
           return false;
         }
       }}>
@@ -103,19 +113,16 @@ function Auth() {
           </select></label>
         </>}
       </Form>
-      <p role="status">{notice}</p>
-      <button type="button" onClick={() => { setSignup(!signup); setNotice(''); }}>
+      {notice && <p className="auth-notice" role="alert">{notice}</p>}
+      <button type="button" className="auth-switch" onClick={() => { setSignup(!signup); setNotice(''); }}>
         {signup ? 'Hisobim bor' : 'Korxonani ro‘yxatdan o‘tkazish'}
       </button>
-    </section>
-  </main>;
+  </AuthCard>;
 }
 
 function ChangePassword({ session }) {
   const [notice, setNotice] = useState('');
-  return <main><div className="auth-brand"><BrandWordmark /></div><section>
-    <h1>Yangi parol o‘rnating</h1>
-    <p>Korxona panelini ochish uchun vaqtinchalik parolni almashtiring.</p>
+  return <AuthCard title="Yangi parol o‘rnating" description="Korxona panelini ochish uchun vaqtinchalik parolni almashtiring.">
     <Form label="Parolni almashtirish" onSubmit={async fields => {
       const password = fields.get('password');
       try {
@@ -130,9 +137,9 @@ function ChangePassword({ session }) {
       <label>Vaqtinchalik parol<input type="password" name="currentPassword" autoComplete="current-password" required /></label>
       <label>Yangi parol<input type="password" name="password" minLength="8" autoComplete="new-password" required /></label>
     </Form>
-    <p role="status">{notice}</p>
-    <button type="button" onClick={() => db.auth.signOut()}>Chiqish</button>
-  </section></main>;
+    {notice && <p className="auth-notice" role="alert">{notice}</p>}
+    <button type="button" className="auth-switch" onClick={() => db.auth.signOut()}>Chiqish</button>
+  </AuthCard>;
 }
 
 export default function Page() {
@@ -144,9 +151,9 @@ export default function Page() {
   }, []);
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-    return <main><h1 className="auth-brand"><BrandWordmark /></h1><p>Ilovani ishga tushirish uchun Supabase loyiha manzili va ochiq kalitini sozlang.</p></main>;
+    return <AuthCard title="Hisobga kirish" description="Ilovani ishga tushirish uchun Supabase loyiha manzili va ochiq kalitini sozlang." />;
   }
-  if (session === undefined) return <main><p>Hisob yuklanmoqda…</p></main>;
+  if (session === undefined) return <AuthCard title="Hisobga kirish"><p role="status">Hisob yuklanmoqda…</p></AuthCard>;
   if (!session) return <Auth />;
   if (session.user.app_metadata.must_change_password === true) return <ChangePassword session={session} />;
   return <Workspace key={session.user.id} session={session} />;

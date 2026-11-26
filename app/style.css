@@ -292,10 +292,24 @@ body:has(.product-drawer[open]) { overflow: hidden; }
 .subscription-status { text-align: center; margin-top: 16px; }
 @media (max-width: 1100px) { .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 500px) { .plan-grid { grid-template-columns: 1fr; } .plan-card p { min-height: 0; } }
-.auth-brand .wordmark { height: auto; padding: 0; font-size: 42px; }
+
 .staff-controls { margin-block: 6px; }
 .map-choices { margin-top: 4px; }
 .map-choices summary { color: var(--accent); cursor: pointer; width: max-content; }
 .map-choices div { display: flex; flex-wrap: wrap; gap: 6px 10px; padding-top: 4px; }
 .gps-button { display: inline-flex; align-items: center; gap: 6px; }
 .debt-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border: 1px solid #efd0a8; border-radius: 8px; background: #fff6e8; font-size: 13px; }
+body > .auth-page { display: grid; place-items: center; min-height: 100dvh; max-width: none; margin: 0; padding: 24px 16px; }
+.auth-page .auth-card { width: min(100%, 450px); padding: clamp(20px, 5vw, 34px); margin: 0; border-radius: 16px; background: #fff; box-shadow: 0 10px 32px #1f37600f; }
+.auth-brand .wordmark { display: block; height: auto; padding: 0; font-size: clamp(38px, 8vw, 56px); line-height: 1.03; }
+.auth-caption { margin: 9px 0 14px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-weight: 750; color: #475e80; }
+.auth-card h1 { margin: 0; font-size: clamp(22px, 5.4vw, 28px); }
+.auth-description { margin: 7px 0 20px; font-size: 14px; line-height: 1.45; }
+.auth-card form { display: grid; align-items: stretch; gap: 14px; }
+.auth-card label { font-size: 13px; font-weight: 600; }
+.auth-card input, .auth-card select { width: 100%; min-height: 46px; padding: 10px 12px; border-color: #d9e3f2; background: #f2f6fc; font-weight: 400; }
+.auth-card input:focus, .auth-card select:focus { background: #fff; }
+.auth-card .action { width: 100%; min-height: 44px; margin-top: 4px; font-weight: 650; }
+.auth-card .auth-switch { width: 100%; padding: 10px 6px 0; margin-top: 9px; border: 0; background: transparent; color: var(--accent); font-size: 13px; font-weight: 650; }
+.auth-switch:hover { text-decoration: underline; }
+.auth-card .auth-notice { margin: 12px 0 0; padding: 8px 10px; color: #942b22; background: #fff1ef; border-radius: 7px; font-size: 13px; }
