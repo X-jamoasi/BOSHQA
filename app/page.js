@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { notifyOrderUpdate } from '../lib/order-notifications';
+import DemandBaseline from './demand-baseline';
+import InventoryOperations from './inventory-operations';
 import VoiceOrder from './voice-order';
 import WorkspaceBackup from './workspace-backup';
 import Platform, { platformSections } from './platform';
@@ -191,6 +193,8 @@ const sections = [
   ['basket', 'Savat', '', ['customer']],
   ['receivables', 'Qarzlar', ''],
   ['telegram', 'Telegram bot', '', ['manager','supplier','customer']],
+  ['demand', 'Talab va zaxira prognozi', '', ['owner', 'manager']],
+  ['inventory-operations', 'Ombor amallari', '', ['owner', 'manager']],
   ['offers', 'Taklif yozish', '', ['owner', 'manager']],
   ['agent', 'AI agent', '', ['owner','manager']],
   ['ai', 'AI tahlili', '✦', ['owner', 'manager']],
@@ -459,6 +463,8 @@ function Company({ member, token, view, selectView }) {
     {view === 'subscriptions' && role === 'owner' && <SubscriptionPlans company={id} />}
     {view === 'receivables' && <Receivables db={db} company={id} role={role} onUpdated={loadOverdue} initialOrder={receiptOrder} />}
     {view === 'telegram' && ['manager','supplier','customer'].includes(role) && <TelegramPanel company={id} accessToken={token} role={role} />}
+    {view === 'demand' && manages && <DemandBaseline db={db} company={id}/> }
+    {view === 'inventory-operations' && manages && <InventoryOperations db={db} company={id} role={role} products={products} refresh={load}/> }
     {view === 'offers' && manages && <StoreOffers db={db} company={id} />}
     {view === 'agent' && manages && <section className="tushum-section">
       <div className="tushum-card">
