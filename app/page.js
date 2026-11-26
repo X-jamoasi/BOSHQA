@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { notifyOrderUpdate } from '../lib/order-notifications';
 import VoiceOrder from './voice-order';
 import WorkspaceBackup from './workspace-backup';
 import Platform, { platformSections } from './platform';
@@ -354,6 +355,7 @@ function Company({ member, token, view, selectView }) {
       setChanging(false);
       return false;
     }
+    if (['review_checkout_batch','approve_shop_delivery','advance_checkout_delivery','advance_order'].includes(name)) notifyOrderUpdate(token);
     setInsight(null);
     try {
       await load();
@@ -376,7 +378,7 @@ function Company({ member, token, view, selectView }) {
         body: JSON.stringify({ company: id }),
       });
       const result = await response.json();
-      setInsight({ text: result.text ?? result.error, source: result.source });
+      setInsight({ text: result.text ?? result.error, source: result.source, coverage: result.coverage });
     } catch {
       setInsight({ text: 'Tahlil xizmatiga ulanib bo‘lmadi.' });
     } finally {
@@ -482,6 +484,12 @@ function Company({ member, token, view, selectView }) {
       {insight && <div className="insight" role={insight.source === 'ai' ? 'status' : 'alert'}>
         {insight.source === 'ai' && <strong>AI xulosasi</strong>}
         <p>{insight.text}</p>
+        {insight.coverage?.length > 0 && <div className="table"><table>
+          <thead><tr><th>Mahsulot</th><th>Qoldiq</th><th>7 kunda yetkazilgan</th><th>Taxminiy zaxira</th></tr></thead>
+          <tbody>{insight.coverage.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.stock} {item.unit}</td>
+            <td>{item.delivered_7d} {item.unit}</td><td>{item.coverage_days == null ? '—' : item.coverage_days + ' kun'}</td></tr>)}</tbody>
+        </table></div>}
+
       </div>}
     </section>}
     {view === 'orders' && manages && <section>
@@ -527,11 +535,11 @@ function Company({ member, token, view, selectView }) {
           </td>
           {role !== 'customer' && <td>
             <OrderActions company={id} order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
-            {order.status === 'delivered' && order.direction === 'outbound' && lines.map(line =>
-              <button key={line.id} className="text-button" type="button" onClick={() => {
-                setReceiptOrder(line.id);
+            {order.status === 'delivered' && order.direction === 'outbound' &&
+              <button className="text-button" type="button" onClick={() => {
+                setReceiptOrder(order.id);
                 selectView('receivables');
-              }}>{lines.length > 1 ? 'To‘lov · ' + (productNames.get(line.product_id) || 'Mahsulot') : 'To‘lovni ko‘rish →'}</button>)}
+              }}>To‘lovni ko‘rish →</button>}
           </td>}
         </tr>; })}</tbody>
       </table></div> : <PanelState>{orderFilter || query ? 'Filtrga mos buyurtma topilmadi.' : 'Buyurtmalar hali yo‘q.'}</PanelState>}

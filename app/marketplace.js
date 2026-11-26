@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Building2, Minus, Package, Plus, ShoppingBasket } from 'lucide-react';
+import { notifyOrderUpdate } from '../lib/order-notifications';
 import { formatMoney } from './sales';
 
 async function withImages(db, rows, field) {
@@ -37,6 +38,7 @@ export function useBasket() {
     });
     if (error?.code === 'PGRST202') throw new Error('Savatni ishga tushirish uchun Supabase migratsiyasi kerak.');
     if (error) throw error;
+    void db.auth.getSession().then(({ data }) => notifyOrderUpdate(data.session?.access_token)).catch(() => {});
     setItems(previous => previous.filter(line => line.company.id !== company));
     delete request.current[company];
   }
