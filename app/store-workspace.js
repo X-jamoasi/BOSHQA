@@ -7,16 +7,18 @@ import AiChat from './ai-chat';
 import { DashboardShell, Metrics, StatusBadge, formatDashboardDate } from './dashboard-ui';
 import { MapChoices, formatMoney } from './sales';
 import TelegramPanel from './telegram-panel';
+import { Basket, StoreMarket, useBasket } from './marketplace';
 
 const links = [
   ['overview','Bosh sahifa'],['receivables','Qarzlar'],['companies','Firmalar'],['telegram','Telegram bot'],
-  ['orders','Buyurtmalar'],['store','Do‘kon'],['assistant','AI nazorati'],
+  ['orders','Buyurtmalar'],['basket','Savat'],['store','Do‘kon'],['assistant','AI nazorati'],
 ];
 const orderStatus={pending:'Kutilmoqda',approved:'Tasdiqlangan',shipped:'Jo‘natilgan',delivered:'Yetkazilgan',rejected:'Firma rad etgan'};
 const decisionText={accepted:'Do‘kon qabul qilgan',rejected:'Do‘kon rad etgan'};
 const activeStatus=['pending','approved','shipped'];
 
 export default function StoreWorkspace({ db, session }) {
+  const basket = useBasket();
   const [view,setView]=useState('overview');
   const [data,setData]=useState(null);
   const [notice,setNotice]=useState('');
@@ -45,6 +47,14 @@ export default function StoreWorkspace({ db, session }) {
   }
 
   useEffect(()=>{ initialize(); },[db]);
+
+  useEffect(() => {
+    if (view !== 'orders') return;
+    const refresh = () => load().catch(error => setNotice(error.message));
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => clearInterval(timer);
+  }, [view]);
 
   async function change(name,args) {
     setBusy(true);
@@ -104,11 +114,11 @@ export default function StoreWorkspace({ db, session }) {
       </div>
     </>}
     {data&&view==='receivables'&&<section><h2>Firmalar bo‘yicha qarzlar</h2><DebtTable debts={data.debts}/></section>}
-    {data&&view==='companies'&&<section><h2>Biriktirilgan firmalar</h2>
-      {data.companies.length?<div className="table"><table><thead><tr><th>Firma</th><th>Yo‘nalish</th></tr></thead>
-        <tbody>{data.companies.map(item=><tr key={item.id}><td>{item.name}</td><td>{item.sector||'—'}</td></tr>)}</tbody>
-      </table></div>:<p>Firma hali bog‘lanmagan. Agentga do‘kon ID’sini bering.</p>}
-    </section>}
+    {data&&view==='companies'&&<StoreMarket db={db} onAdd={(firm, product) => {
+      basket.add(firm, product);
+      setNotice(product.name + ' savatga qo‘shildi.');
+    }}/>}
+    {data&&view==='basket'&&<Basket db={db} basket={basket} profile={profile} onSent={load}/>}
     {data&&view==='orders'&&<section>
       <div className="panel-heading"><h2>Buyurtmalar ro‘yxati</h2><div className="staff-controls">
         {['active','completed'].map(item=><button type="button" key={item} className={filter===item?'action':'secondary'} aria-pressed={filter===item}

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import BrandWordmark from './brand';
-import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, PackagePlus, Percent, Send, ReceiptText } from 'lucide-react';
+import { Boxes, Building2, CalendarDays, ChevronDown, ClipboardList, House, LayoutGrid, LogOut, Menu, Search, Settings2, Sparkles, Users, WalletCards, Store, PackagePlus, Percent, Send, ReceiptText, ShoppingBasket } from 'lucide-react';
 
 const icons = {
-  overview: House, shops: Store, store: Store, 'add-product': PackagePlus, discounts: Percent, subscriptions: WalletCards, receivables: ReceiptText, telegram: Send, agent: Sparkles, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
+  basket: ShoppingBasket, overview: House, shops: Store, store: Store, 'add-product': PackagePlus, discounts: Percent, subscriptions: WalletCards, receivables: ReceiptText, telegram: Send, agent: Sparkles, products: Boxes, catalog: Boxes, staff: Users, orders: ClipboardList,
   ai: Sparkles, assistant: Sparkles, profile: Settings2, companies: Building2, monitoring: Sparkles, revenue: WalletCards, activity: ClipboardList,
 };
 const counts = new Intl.NumberFormat('uz-UZ');

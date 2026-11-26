@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
+import { Basket, ProductCards, useBasket } from './marketplace';
 import StoreWorkspace from './store-workspace';
 import BrandWordmark from './brand';
 import Profile from './profile';
@@ -172,6 +173,7 @@ const sections = [
   ['catalog', 'Mahsulotlar katalogi', '◈', ['supplier', 'customer']],
   ['staff', 'Xodimlar', '◎', ['owner']],
   ['orders', 'Buyurtmalar', '≡'],
+  ['basket', 'Savat', '', ['customer']],
   ['receivables', 'Qarzlar', ''],
   ['telegram', 'Telegram bot', '', ['manager','supplier','customer']],
   ['agent', 'AI agent', '', ['owner','manager']],
@@ -264,6 +266,7 @@ function SupplierSelect({ suppliers }) {
 
 function Company({ member, token, view, selectView }) {
   const id = member.company_id;
+  const basket = useBasket();
   const role = member.role;
   const manages = role === 'owner' || role === 'manager';
   const [snapshot, setSnapshot] = useState(null);
@@ -294,15 +297,14 @@ function Company({ member, token, view, selectView }) {
   },[id,manages]);
 
   async function load() {
-    const [inventory, orderRows, suppliers, catalog, shops, discounts, totals, connections, decisions] = await Promise.all([
+    const [inventory, orderRows, suppliers, catalog, shops, discounts, totals, decisions] = await Promise.all([
       manages ? read(db.rpc('inventory', { p_company: id })) : [],
-      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude,expected_delivery_date').eq('company_id', id).order('created_at', { ascending: false })),
+      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude,expected_delivery_date,shop_id').eq('company_id', id).order('created_at', { ascending: false })),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
       read(db.rpc('sales_catalog', { p_company: id })),
-      manages || role === 'customer' ? read(db.rpc('shop_directory', { p_company: id })) : [],
+      manages || role === 'customer' ? read(db.rpc('market_shop_list', { p_company: id }).then(result => result.error?.code === 'PGRST202' ? db.rpc('shop_directory', { p_company: id }) : result)) : [],
       manages ? read(db.rpc('company_discounts', { p_company: id })) : [],
       manages || role === 'customer' ? read(db.rpc('order_sale_totals', { p_company: id })) : [],
-      manages ? read(db.rpc('company_store_connections', { p_company: id })) : [],
       read(db.rpc('company_store_delivery_decisions', { p_company: id })),
 
     ]);
@@ -314,7 +316,7 @@ function Company({ member, token, view, selectView }) {
     const totalsByOrder = new Map(totals.map(item => [item.id, item]));
     const decisionsByOrder = new Map(decisions.map(item => [item.order_id, item]));
     const orders = orderRows.map(item => ({ ...item, ...totalsByOrder.get(item.id), ...decisionsByOrder.get(item.id) }));
-    setSnapshot({ products, orders, suppliers, shops, discounts, connections });
+    setSnapshot({ products, orders, suppliers, shops, discounts });
   }
 
   useEffect(() => {
@@ -362,7 +364,7 @@ function Company({ member, token, view, selectView }) {
   }
 
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
-  const { products, orders, suppliers, shops, discounts, connections } = snapshot;
+  const { products, orders, suppliers, shops, discounts } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
   const addingProduct = view === 'add-product' && manages;
   const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
@@ -422,7 +424,7 @@ function Company({ member, token, view, selectView }) {
     <StaffDirectory db={db} company={id} roles={roles} statuses={statuses} revision={staffRevision}
       onChanged={() => load().catch(error => setNotice(error.message))} />
     </>}
-    {view === 'shops' && <Shops shops={shops} connections={connections} canManage={role === 'manager'} canAdd={role === 'customer'} Form={Form} change={change} company={id}
+    {view === 'shops' && <Shops shops={shops} orders={orders} products={products} statuses={statuses} canManage={role === 'manager'} canAdd={role === 'customer'} Form={Form} change={change} company={id}
       openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
     {productDrawerOpen && <AddProduct key={editingProduct?.id || 'new'} product={editingProduct}
       db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
@@ -440,7 +442,12 @@ function Company({ member, token, view, selectView }) {
       </div>
     </section>}
     {view === 'discounts' && manages && <Discounts products={products} discounts={discounts} company={id} Form={Form} change={change} />}
-    {view === 'catalog' && !manages && <ProductList products={products} showPrice={role === 'customer'} />}
+    {view === 'catalog' && role === 'supplier' && <ProductList products={products} />}
+    {role === 'customer' && (view === 'orders' || view === 'catalog') && <ProductCards products={products} onAdd={product => {
+      basket.add({ id, name: member.companies.name }, product);
+      setNotice(product.name + ' savatga qo‘shildi.');
+    }} />}
+    {role === 'customer' && view === 'basket' && <Basket db={db} basket={basket} shops={shops} initialShop={orderShop} onSent={load} />}
     {(view === 'products' || addingProduct) && manages && <ProductList products={products} manages showPrice addProduct={() => selectView('add-product')} editProduct={setEditingProductId} />}
     {view === 'ai' && manages && <section>
       <h2>Ombor bo‘yicha AI tavsiyasi</h2>
@@ -451,32 +458,17 @@ function Company({ member, token, view, selectView }) {
         <p>{insight.text}</p>
       </div>}
     </section>}
-    {view === 'orders' && (manages || role === 'customer') && <section>
-      <h2>{manages ? 'Xomashyo buyurtmasi' : 'Yangi buyurtma'}</h2>
-      {!products.length || (manages ? !suppliers.length : !shops.length) ? <p>{manages
-        ? 'Avval mahsulot va ta’minotchi qo‘shing.'
-        : products.length ? 'Buyurtma berish uchun avval Do‘konlar bo‘limida do‘kon qo‘shing.' : 'Katalogda mahsulot yo‘q.'}</p> :
-        <Form key={orderShop} label="Buyurtma berish" onSubmit={fields => {
-          const product = fields.get('product');
-          const quantity = Number(fields.get('quantity'));
-          return manages ? change('create_order', {
-            p_company: id, p_product: product, p_quantity: quantity,
-            p_direction: 'inbound', p_address: fields.get('address'), p_supplier: fields.get('supplier'),
-          }) : change('create_shop_order', {
-            p_company: id, p_product: product, p_quantity: quantity, p_shop: fields.get('shop'),
-          });
-        }}>
-          <label>Mahsulot<select name="product">{products.map(item => <option key={item.id} value={item.id}>
-            {item.name} · {item.unit}{!manages && item.price != null ? ' · ' + formatMoney(item.price * (100 - item.discount) / 100) : ''}
-          </option>)}</select></label>
+    {view === 'orders' && manages && <section>
+      <h2>Xomashyo buyurtmasi</h2>
+      {!products.length || !suppliers.length ? <p>Avval mahsulot va ta’minotchi qo‘shing.</p> :
+        <Form label="Buyurtma berish" onSubmit={fields => change('create_order', {
+          p_company: id, p_product: fields.get('product'), p_quantity: Number(fields.get('quantity')),
+          p_direction: 'inbound', p_address: fields.get('address'), p_supplier: fields.get('supplier'),
+        })}>
+          <label>Mahsulot<select name="product">{products.map(item => <option key={item.id} value={item.id}>{item.name} · {item.unit}</option>)}</select></label>
           <label>Miqdor<input name="quantity" type="number" min="1" max="1000000" required /></label>
-          {manages ? <>
-            <label>Yetkazish manzili<input name="address" minLength="5" maxLength="250" required /></label>
-            <SupplierSelect suppliers={suppliers} />
-          </> : <label>Yetkaziladigan do‘kon<select name="shop" defaultValue={orderShop} required>
-            <option value="" disabled>Do‘konni tanlang</option>
-            {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name} · {shop.address}</option>)}
-          </select></label>}
+          <label>Yetkazish manzili<input name="address" minLength="5" maxLength="250" required /></label>
+          <SupplierSelect suppliers={suppliers} />
         </Form>}
     </section>}
     {view === 'orders' && <section>

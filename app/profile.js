@@ -23,7 +23,8 @@ export default function Profile({ db, session, member, title, accountAction, onC
   useEffect(() => {
     if (!showCompany) return;
     let active = true;
-    db.rpc('company_profile', { p_company: companyId }).single()
+    db.rpc('market_company_profile', { p_company: companyId }).single()
+      .then(result => result.error?.code === 'PGRST202' ? db.rpc('company_profile', { p_company: companyId }).single() : result)
       .then(({ data, error }) => {
         if (!active) return;
         if (error) setCompanyError('Korxona ma’lumotlarini yuklab bo‘lmadi. Profil migratsiyasi bajarilganini tekshiring.');
@@ -67,22 +68,46 @@ export default function Profile({ db, session, member, title, accountAction, onC
   async function saveCompany(event) {
     event.preventDefault();
     const fields = Object.fromEntries(new FormData(event.currentTarget));
+    let uploaded;
+    let saved = false;
     const next = {
       name: fields.name.trim(), sector: fields.sector || null,
       contact: fields.contact.trim() || null, legal_address: fields.legal_address.trim() || null,
+      legal_type: fields.legal_type || null, legal_name: fields.legal_name.trim() || null, cover_path: company.cover_path || null,
     };
     setSavingCompany(true);
     setCompanyStatus('');
     try {
-      const { error } = await db.rpc('update_company_profile', {
-        p_company: companyId, p_name: next.name, p_sector: next.sector,
-        p_contact: next.contact, p_legal_address: next.legal_address,
+      const image = fields.cover;
+      const bucket = db.storage.from('product-images');
+      if (image.size) {
+        if (image.size > 2097152 || !['image/jpeg','image/png','image/webp'].includes(image.type)) throw new Error('2 MB gacha JPEG, PNG yoki WebP rasm tanlang.');
+        const path = companyId + '/cover/' + crypto.randomUUID();
+        const { error } = await bucket.upload(path, image, { contentType: image.type });
+        if (error) throw error;
+        uploaded = path;
+        next.cover_path = path;
+      } else if (fields.remove_cover) {
+        next.cover_path = null;
+      }
+      const { error } = await db.rpc('update_market_company', {
+        p_company: companyId, p_name: next.name, p_sector: next.sector, p_contact: next.contact,
+        p_address: next.legal_address, p_type: next.legal_type, p_legal_name: next.legal_name, p_cover: next.cover_path,
       });
-      if (error) throw error;
+      if (error?.code === 'PGRST202') {
+        if (uploaded || next.legal_type || next.legal_name) throw new Error('Firma rasmi va yuridik shakl uchun Supabase migratsiyasi kerak.');
+        const { error: legacyError } = await db.rpc('update_company_profile', {
+          p_company: companyId, p_name: next.name, p_sector: next.sector, p_contact: next.contact, p_legal_address: next.legal_address,
+        });
+        if (legacyError) throw legacyError;
+      } else if (error) throw error;
+      saved = true;
+      if (company.cover_path && company.cover_path !== next.cover_path) await bucket.remove([company.cover_path]);
       setCompany(next);
       onCompanySaved(companyId, next);
       setCompanyStatus('Korxona ma’lumotlari saqlandi.');
     } catch (error) {
+      if (uploaded && !saved) await db.storage.from('product-images').remove([uploaded]);
       setCompanyStatus(error.message);
     } finally {
       setSavingCompany(false);
@@ -116,6 +141,12 @@ export default function Profile({ db, session, member, title, accountAction, onC
         <label>Faoliyat yo‘nalishi<select name="sector" defaultValue={company.sector || ''}>
           <option value="">Tanlanmagan</option>{sectors.map(sector => <option key={sector}>{sector}</option>)}
         </select></label>
+        <label>Yuridik shakl<select name="legal_type" defaultValue={company.legal_type || ''}>
+          <option value="">Tanlang</option>{['YaTT','MChJ','AJ','XK','Oilaviy korxona','Boshqa'].map(type => <option key={type}>{type}</option>)}
+        </select></label>
+        <label>Yuridik nomi<input name="legal_name" minLength="2" maxLength="150" defaultValue={company.legal_name || ''} /></label>
+        <label>Firma rasmi<input key={company.cover_path || 'cover'} name="cover" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        {company.cover_path && <label><input name="remove_cover" type="checkbox" /> Joriy rasmni olib tashlash</label>}
         <label>Korxona e-pochtasi yoki telefoni<input name="contact" maxLength="254" defaultValue={company.contact || ''} /></label>
         <label>Yuridik manzil<input name="legal_address" minLength="5" maxLength="250" defaultValue={company.legal_address || ''} /></label>
         <div><button className="action" disabled={savingCompany}>{savingCompany ? 'Saqlanmoqda…' : 'Korxona ma’lumotlarini saqlash'}</button></div>
@@ -123,6 +154,7 @@ export default function Profile({ db, session, member, title, accountAction, onC
         <div><dt>Korxona nomi</dt><dd>{company.name}</dd></div>
         <div><dt>Faoliyat yo‘nalishi</dt><dd>{company.sector || 'Kiritilmagan'}</dd></div>
         <div><dt>E-pochta yoki telefon</dt><dd>{company.contact || 'Kiritilmagan'}</dd></div>
+        <div><dt>Yuridik nomi</dt><dd>{[company.legal_type, company.legal_name].filter(Boolean).join(' · ') || 'Kiritilmagan'}</dd></div>
         <div><dt>Yuridik manzil</dt><dd>{company.legal_address || 'Kiritilmagan'}</dd></div>
       </dl>)}
       {companyStatus && <p role="status">{companyStatus}</p>}

@@ -15,7 +15,12 @@ export function MapChoices({ latitude, longitude }) {
 }
 export const formatMoney = value => value == null ? '—' : money.format(value) + ' so‘m';
 
-export function Shops({ shops, connections, canAdd, canManage, Form, change, company, openOrder }) {
+export function Shops({ shops, orders, products, statuses, canAdd, canManage, Form, change, company, openOrder }) {
+  const [selected, setSelected] = useState(null);
+  const current = shops.find(shop => shop.id === selected);
+  const relatedIds = new Set(shops.filter(shop => current && (shop.id === current.id || (current.store_id && shop.store_id === current.store_id))).map(shop => shop.id));
+  const shopOrders = orders.filter(order => relatedIds.has(order.shop_id));
+  const listed = canAdd ? shops : [...new Map(shops.map(shop => [shop.store_id || shop.id, shop])).values()];
   return <>
     {canAdd && <section>
       <h2>Do‘konni ID orqali bog‘lash</h2>
@@ -25,31 +30,31 @@ export function Shops({ shops, connections, canAdd, canManage, Form, change, com
         <label>Do‘kon ID’si<input name="code" autoComplete="off" spellCheck={false} maxLength="40" required /></label>
       </Form>
     </section>}
-    {connections.length > 0 && <section>
-      <h2>Firmaga bog‘langan do‘konlar</h2>
-      <div className="table"><table>
-        <thead><tr><th>Do‘kon</th><th>Yuridik nomi</th><th>Holat</th>{canManage && <th>Amal</th>}</tr></thead>
-        <tbody>{connections.map(store => <tr key={store.store_id}>
-          <td>{store.name}</td><td>{store.legal_name || '—'}</td><td>{store.active ? 'Faol' : 'Uzilgan'}</td>
-          {canManage && <td><button type="button" className="secondary" onClick={() => {
-            if (store.active && !window.confirm('Do‘kon bilan aloqani uzasizmi? Buyurtma va qarz tarixi saqlanadi.')) return;
-            change('set_company_store_connection', { p_company: company, p_store: store.store_id, p_active: !store.active });
-          }}>{store.active ? 'Aloqani uzish' : 'Qayta ulash'}</button></td>}
-        </tr>)}</tbody>
-      </table></div>
-    </section>}
     <section>
       <h2>Do‘konlar ro‘yxati</h2>
-      {shops.length ? <div className="table"><table>
+      {listed.length ? <div className="table"><table>
         <thead><tr><th>Do‘kon</th><th>Firma</th><th>Telefon</th><th>Manzil</th><th>Joylashuv</th><th>{canAdd ? 'Amal' : 'Kiritgan agent'}</th></tr></thead>
-        <tbody>{shops.map(shop => <tr key={shop.id}>
-          <td>{shop.name}</td><td>{shop.legal_type === 'yatt' ? 'YaTT' : 'MChJ'} · {shop.legal_name}</td>
+        <tbody>{listed.map(shop => <tr key={shop.id}>
+          <td><button type="button" className="text-button" onClick={() => setSelected(shop.id)}>{shop.name}</button>{shop.active === false && <small> · Aloqa uzilgan</small>}</td><td>{shop.legal_type === 'yatt' ? 'YaTT' : 'MChJ'} · {shop.legal_name}</td>
           <td>{shop.phone}</td><td>{shop.address}</td>
           <td><MapChoices latitude={shop.latitude} longitude={shop.longitude} /></td>
           <td>{canAdd ? <button className="text-button" type="button" onClick={() => openOrder(shop.id)}>Buyurtma berish →</button> : shop.agent}</td>
         </tr>)}</tbody>
       </table></div> : <p>Do‘kon hali qo‘shilmagan.</p>}
     </section>
+    {current && <section>
+      <div className="panel-heading"><h2>{current.name}</h2><button type="button" className="secondary" onClick={() => setSelected(null)}>Yopish</button></div>
+      <p>{current.legal_name} · {current.phone} · {current.address}</p>
+      <MapChoices latitude={current.latitude} longitude={current.longitude}/>
+      {canManage && current.store_id && <button type="button" className="secondary" onClick={() => {
+        if (current.active && !window.confirm('Do‘kon bilan aloqani uzasizmi?')) return;
+        change('set_company_store_connection', { p_company: company, p_store: current.store_id, p_active: !current.active });
+      }}>{current.active ? 'Aloqani uzish' : 'Qayta ulash'}</button>}
+      <h3>Do‘kon buyurtmalari</h3>
+      {shopOrders.length ? <div className="table"><table><thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Holat</th><th>Summa</th></tr></thead>
+        <tbody>{shopOrders.map(order => <tr key={order.id}><td>{products.find(product => product.id === order.product_id)?.name || 'Mahsulot'}</td>
+          <td>{order.quantity} {order.order_unit}</td><td>{statuses[order.status]}</td><td>{formatMoney(order.order_total)}</td></tr>)}</tbody></table></div> : <p>Buyurtmalar hali yo‘q.</p>}
+    </section>}
   </>;
 }
 
