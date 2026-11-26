@@ -50,7 +50,7 @@ export default function AiChat({ company, token, openSignal, standalone, role })
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ company, messages: next.slice(-9) }),
+        body: JSON.stringify({ company, store: role === 'store', messages: next.slice(-9) }),
       });
       const result = await response.json();
       if (!response.ok || typeof result.text !== 'string') {
@@ -67,7 +67,7 @@ export default function AiChat({ company, token, openSignal, standalone, role })
   }
 
   return <div className={standalone ? 'ai-workspace' : 'ai-widget'}>
-    {standalone && <header className="page-header"><h1>AI yordamchi</h1></header>}
+    {standalone && <header className="page-header"><h1>{role === 'store' ? 'AI nazorati' : 'AI yordamchi'}</h1></header>}
     {visible && <section className="ai-window" id="ai-yordamchi" aria-labelledby="ai-yordamchi-nomi">
       <div className="ai-window-title">
         <h2 id="ai-yordamchi-nomi">{standalone ? 'Suhbat' : 'AI yordamchi'}</h2>
@@ -76,7 +76,7 @@ export default function AiChat({ company, token, openSignal, standalone, role })
       <div className="ai-thread" role="log" aria-live="polite">
         {!messages.length && <>
           <p>BOSHQA’dan foydalanish haqida savol yuboring.</p>
-          <div className="prompt-list">{(company
+          <div className="prompt-list">{(role === 'store' ? ['Qaysi qarzlarning muddati yaqin?', 'Kechikkan buyurtmalarim bormi?'] : company
             ? [role === 'owner' ? 'Bugun qancha savdo bo‘ldi?' : 'Buyurtmani qanday kuzataman?',
                ['owner', 'manager'].includes(role) ? 'Qaysi mahsulot kam qoldi?' : 'BOSHQA’da qanday yordam ola olaman?']
             : ['Platforma ko‘rsatkichlarini qanday kuzataman?', 'AI monitoring nima ko‘rsatadi?']

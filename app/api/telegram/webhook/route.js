@@ -40,9 +40,20 @@ export async function POST(request) {
     const {data,error}=await service.rpc('link_shared_telegram_chat',{p_chat:chat,p_hash:hashCode(start[1])});
     if (error) return new Response(null,{status:503});
     linkedNow=data === true;
+    if (!linkedNow) {
+      const {data:storeLinked,error:storeError}=await service.rpc('link_store_telegram_chat',{p_chat:chat,p_hash:hashCode(start[1])});
+      if (storeError && storeError.code!=='PGRST202') return new Response(null,{status:503});
+      linkedNow=storeLinked === true;
+    }
   }
-  const {data,error}=await service.rpc('shared_telegram_bot_data',{p_chat:chat,p_command:command});
+  const {data:member,error}=await service.rpc('shared_telegram_bot_data',{p_chat:chat,p_command:command});
   if (error) return new Response(null,{status:503});
+  let data=member;
+  if (!data) {
+    const {data:store,error:storeError}=await service.rpc('store_telegram_bot_data',{p_chat:chat,p_command:command});
+    if (storeError && storeError.code!=='PGRST202') return new Response(null,{status:503});
+    data=store;
+  }
   if (!data && !start && !text.startsWith('/start')) return empty();
   const output=(linkedNow?'BOSHQA hisobi ulandi.\n':'')+answer(command,data);
   const sent=await telegramRequest(token,'sendMessage',{chat_id:chat,text:output.slice(0,3900),link_preview_options:{is_disabled:true}});

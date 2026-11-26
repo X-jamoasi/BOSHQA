@@ -25,7 +25,7 @@ export async function POST(request) {
   const { action } = input;
   let actor;
   let db;
-  if (action !== 'register') {
+  if (!['register','register_store'].includes(action)) {
     const authorization = request.headers.get('Authorization');
     if (!authorization?.startsWith('Bearer ')) return failure('Hisobga kiring.', 401);
     db = makeSupabase({ auth, global: { headers: { Authorization: authorization } } });
@@ -84,7 +84,7 @@ export async function POST(request) {
     return Response.json({ ok: true });
   }
 
-  if (!['register', 'staff'].includes(action)) return failure('Amal yaroqsiz.', 400);
+  if (!['register', 'register_store', 'staff'].includes(action)) return failure('Amal yaroqsiz.', 400);
   const login = typeof input.login === 'string' ? input.login.trim().toLowerCase() : '';
   if (!loginPattern.test(login)) return failure('Login 3–32 ta lotin harfi, raqam, nuqta, chiziq yoki pastki chiziqdan iborat bo‘lsin.', 400);
 
@@ -99,6 +99,13 @@ export async function POST(request) {
       return failure('Korxona nomi, yo‘nalish, aloqa ma’lumoti va parolni tekshiring.', 400);
     }
     metadata = { boshqa_kind: 'company', company_name: name, sector: input.sector, contact };
+    password = input.password;
+  } else if (action === 'register_store') {
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    if (name.length < 2 || name.length > 100 || !validPassword(input.password)) {
+      return failure('Do‘kon nomi va kamida 8 belgili parolni kiriting.',400);
+    }
+    metadata = { boshqa_kind:'store',store_name:name };
     password = input.password;
   } else {
     if (typeof input.company !== 'string' || !uuid.test(input.company) || !staffRoles.includes(input.role)) {

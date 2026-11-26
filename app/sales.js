@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LocateFixed, ImagePlus, X } from 'lucide-react';
+import { ImagePlus, X } from 'lucide-react';
 import { mapLinks } from '../lib/maps';
 
 export const units = ['dona','blok','kg','qop','tonna','litr','metr','quti','paket','juft'];
@@ -15,48 +15,28 @@ export function MapChoices({ latitude, longitude }) {
 }
 export const formatMoney = value => value == null ? '—' : money.format(value) + ' so‘m';
 
-export function Shops({ shops, canAdd, Form, change, company, openOrder }) {
-  const [gps,setGps]=useState('');
-  const [capturing,setCapturing]=useState(false);
-  const lat=useRef(null);
-  const lng=useRef(null);
-
-  function captureLocation() {
-    if(!navigator.geolocation) { setGps('Bu brauzer GPS’ni qo‘llamaydi. Koordinatalarni qo‘lda kiriting.'); return; }
-    setCapturing(true);
-    setGps('');
-    navigator.geolocation.getCurrentPosition(({coords})=>{
-      if(lat.current&&lng.current) {
-        lat.current.value=coords.latitude.toFixed(6);
-        lng.current.value=coords.longitude.toFixed(6);
-        setGps('Joylashuv olindi. Saqlashdan oldin do‘kon manzilini tekshiring.');
-      }
-      setCapturing(false);
-    },()=>{
-      setCapturing(false);
-      setGps('GPS joylashuvi olinmadi. Brauzer ruxsatini tekshiring yoki koordinatalarni qo‘lda kiriting.');
-    },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
-  }
+export function Shops({ shops, connections, canAdd, canManage, Form, change, company, openOrder }) {
   return <>
     {canAdd && <section>
-      <h2>Do‘kon qo‘shish</h2>
-      <Form label="Do‘konni saqlash" onSubmit={fields => change('add_customer_shop', {
-        p_company: company, p_name: fields.get('name'), p_legal_type: fields.get('legal_type'),
-        p_legal_name: fields.get('legal_name'), p_phone: fields.get('phone'), p_address: fields.get('address'),
-        p_latitude: Number(fields.get('latitude')), p_longitude: Number(fields.get('longitude')),
+      <h2>Do‘konni ID orqali bog‘lash</h2>
+      <Form label="Do‘konni bog‘lash" onSubmit={fields => change('link_store_by_code', {
+        p_company: company, p_code: fields.get('code'),
       })}>
-        <label>Do‘kon nomi<input name="name" minLength="2" maxLength="100" required /></label>
-        <label>Yuridik shakli<select name="legal_type"><option value="yatt">YaTT</option><option value="mchj">MChJ</option></select></label>
-        <label>Firma yoki tadbirkor nomi<input name="legal_name" minLength="2" maxLength="150" required /></label>
-        <label>Do‘kon telefoni<input name="phone" type="tel" maxLength="16" placeholder="+998901234567" required /></label>
-        <label>Manzil<input name="address" minLength="5" maxLength="250" required /></label>
-        <label>Kenglik<input ref={lat} name="latitude" type="number" step="any" min="-90" max="90" placeholder="40.1158" required /></label>
-        <label>Uzunlik<input ref={lng} name="longitude" type="number" step="any" min="-180" max="180" placeholder="67.8422" required /></label>
-        <button type="button" className="secondary gps-button" onClick={captureLocation} disabled={capturing}>
-          <LocateFixed size={16} aria-hidden="true" />{capturing?'GPS olinmoqda…':'GPS orqali olish'}
-        </button>
+        <label>Do‘kon ID’si<input name="code" autoComplete="off" spellCheck={false} maxLength="40" required /></label>
       </Form>
-      <p>{gps || 'GPS tugmasini do‘kon yonida bosing yoki do‘kon koordinatalarini qo‘lda kiriting.'}</p>
+    </section>}
+    {connections.length > 0 && <section>
+      <h2>Firmaga bog‘langan do‘konlar</h2>
+      <div className="table"><table>
+        <thead><tr><th>Do‘kon</th><th>Yuridik nomi</th><th>Holat</th>{canManage && <th>Amal</th>}</tr></thead>
+        <tbody>{connections.map(store => <tr key={store.store_id}>
+          <td>{store.name}</td><td>{store.legal_name || '—'}</td><td>{store.active ? 'Faol' : 'Uzilgan'}</td>
+          {canManage && <td><button type="button" className="secondary" onClick={() => {
+            if (store.active && !window.confirm('Do‘kon bilan aloqani uzasizmi? Buyurtma va qarz tarixi saqlanadi.')) return;
+            change('set_company_store_connection', { p_company: company, p_store: store.store_id, p_active: !store.active });
+          }}>{store.active ? 'Aloqani uzish' : 'Qayta ulash'}</button></td>}
+        </tr>)}</tbody>
+      </table></div>
     </section>}
     <section>
       <h2>Do‘konlar ro‘yxati</h2>

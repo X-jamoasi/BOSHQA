@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Platform, { platformSections } from './platform';
 import AiChat from './ai-chat';
+import StoreWorkspace from './store-workspace';
 import BrandWordmark from './brand';
 import Profile from './profile';
 import StaffDirectory from './staff-directory';
@@ -82,17 +83,18 @@ function AuthCard({ title, description, children }) {
 }
 
 function Auth() {
-  const [signup, setSignup] = useState(false);
+  const [signup, setSignup] = useState('');
+  const registeringStore = signup === 'store';
   const [notice, setNotice] = useState('');
-  return <AuthCard title={signup ? 'Korxonani ro‘yxatdan o‘tkazish' : 'Hisobga kirish'}
-    description={signup ? 'Korxona panelini yaratish uchun ma’lumotlarni kiriting.' : 'BOSHQA boshqaruv paneliga login va parolingiz bilan kiring.'}>
+  return <AuthCard title={signup ? (registeringStore ? 'Do‘konni ro‘yxatdan o‘tkazish' : 'Korxonani ro‘yxatdan o‘tkazish') : 'Hisobga kirish'}
+    description={signup ? 'Panelingizni ochish uchun ma’lumotlarni kiriting.' : 'BOSHQA boshqaruv paneliga login va parolingiz bilan kiring.'}>
       <Form key={signup} label={signup ? 'Ro‘yxatdan o‘tish' : 'Hisobga kirish'} onSubmit={async fields => {
         setNotice('');
         const login = fields.get('login').trim().toLowerCase();
         const password = fields.get('password');
         try {
           if (signup) {
-            await accountAction({ ...Object.fromEntries(fields), action: 'register' });
+            await accountAction({ ...Object.fromEntries(fields), action: registeringStore ? 'register_store' : 'register' });
           }
           const email = login.includes('@') ? login : loginEmail(login);
           await read(db.auth.signInWithPassword({ email, password }));
@@ -102,10 +104,10 @@ function Auth() {
           return false;
         }
       }}>
-        {signup && <label>Korxona nomi<input name="name" minLength="2" maxLength="100" required /></label>}
+        {signup && <label>{registeringStore ? 'Do‘kon nomi' : 'Korxona nomi'}<input name="name" minLength="2" maxLength="100" required /></label>}
         {signup ? <LoginField /> : <label>Login yoki e-pochta<input name="login" autoComplete="username" required /></label>}
         <label>Parol<input type="password" name="password" autoComplete={signup ? 'new-password' : 'current-password'} minLength={signup ? 8 : undefined} required /></label>
-        {signup && <>
+        {signup === 'company' && <>
           <label>E-pochta yoki telefon<input name="contact" maxLength="254" placeholder="nom@misol.uz yoki +998901234567" required /></label>
           <label>Faoliyat yo‘nalishi<select name="sector" defaultValue="" required>
             <option value="" disabled>Tanlang</option>
@@ -114,9 +116,9 @@ function Auth() {
         </>}
       </Form>
       {notice && <p className="auth-notice" role="alert">{notice}</p>}
-      <button type="button" className="auth-switch" onClick={() => { setSignup(!signup); setNotice(''); }}>
-        {signup ? 'Hisobim bor' : 'Korxonani ro‘yxatdan o‘tkazish'}
-      </button>
+      {(signup ? [['','Hisobim bor']] : [['company','Korxonani ro‘yxatdan o‘tkazish'],['store','Do‘konni ro‘yxatdan o‘tkazish']]).map(([kind,label]) =>
+        <button key={kind} type="button" className="auth-switch" onClick={() => { setSignup(kind); setNotice(''); }}>{label}</button>)}
+
   </AuthCard>;
 }
 
@@ -156,6 +158,7 @@ export default function Page() {
   if (session === undefined) return <AuthCard title="Hisobga kirish"><p role="status">Hisob yuklanmoqda…</p></AuthCard>;
   if (!session) return <Auth />;
   if (session.user.app_metadata.must_change_password === true) return <ChangePassword session={session} />;
+  if (session.user.app_metadata.boshqa_kind === 'store') return <StoreWorkspace key={session.user.id} db={db} session={session} />;
   return <Workspace key={session.user.id} session={session} />;
 }
 
@@ -291,14 +294,17 @@ function Company({ member, token, view, selectView }) {
   },[id,manages]);
 
   async function load() {
-    const [inventory, orderRows, suppliers, catalog, shops, discounts, totals] = await Promise.all([
+    const [inventory, orderRows, suppliers, catalog, shops, discounts, totals, connections, decisions] = await Promise.all([
       manages ? read(db.rpc('inventory', { p_company: id })) : [],
-      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude').eq('company_id', id).order('created_at', { ascending: false })),
+      read(db.from('orders').select('id,product_id,quantity,status,direction,delivery_address,created_at,shop_name,order_unit,delivery_latitude,delivery_longitude,expected_delivery_date').eq('company_id', id).order('created_at', { ascending: false })),
       manages ? read(db.rpc('company_suppliers', { p_company: id })) : [],
       read(db.rpc('sales_catalog', { p_company: id })),
       manages || role === 'customer' ? read(db.rpc('shop_directory', { p_company: id })) : [],
       manages ? read(db.rpc('company_discounts', { p_company: id })) : [],
       manages || role === 'customer' ? read(db.rpc('order_sale_totals', { p_company: id })) : [],
+      manages ? read(db.rpc('company_store_connections', { p_company: id })) : [],
+      read(db.rpc('company_store_delivery_decisions', { p_company: id })),
+
     ]);
     const paths = catalog.map(item => item.image_path).filter(Boolean);
     const signed = paths.length ? await db.storage.from('product-images').createSignedUrls(paths, 3600) : null;
@@ -306,8 +312,9 @@ function Company({ member, token, view, selectView }) {
     const stockByProduct = new Map(inventory.map(item => [item.id, item]));
     const products = catalog.map(item => ({ ...stockByProduct.get(item.id), ...item, imageUrl: images.get(item.image_path) }));
     const totalsByOrder = new Map(totals.map(item => [item.id, item]));
-    const orders = orderRows.map(item => ({ ...item, ...totalsByOrder.get(item.id) }));
-    setSnapshot({ products, orders, suppliers, shops, discounts });
+    const decisionsByOrder = new Map(decisions.map(item => [item.order_id, item]));
+    const orders = orderRows.map(item => ({ ...item, ...totalsByOrder.get(item.id), ...decisionsByOrder.get(item.id) }));
+    setSnapshot({ products, orders, suppliers, shops, discounts, connections });
   }
 
   useEffect(() => {
@@ -355,7 +362,7 @@ function Company({ member, token, view, selectView }) {
   }
 
   if (!snapshot) return <p role="status">{notice || 'Korxona ma’lumotlari yuklanmoqda…'}</p>;
-  const { products, orders, suppliers, shops, discounts } = snapshot;
+  const { products, orders, suppliers, shops, discounts, connections } = snapshot;
   const visibleOrders = orders.filter(order => !orderFilter || order.status === orderFilter);
   const addingProduct = view === 'add-product' && manages;
   const editingProduct = view === 'products' && manages ? products.find(item => item.id === editingProductId) : null;
@@ -415,7 +422,7 @@ function Company({ member, token, view, selectView }) {
     <StaffDirectory db={db} company={id} roles={roles} statuses={statuses} revision={staffRevision}
       onChanged={() => load().catch(error => setNotice(error.message))} />
     </>}
-    {view === 'shops' && <Shops shops={shops} canAdd={role === 'customer'} Form={Form} change={change} company={id}
+    {view === 'shops' && <Shops shops={shops} connections={connections} canManage={role === 'manager'} canAdd={role === 'customer'} Form={Form} change={change} company={id}
       openOrder={shop => { setOrderShop(shop); selectView('orders'); }} />}
     {productDrawerOpen && <AddProduct key={editingProduct?.id || 'new'} product={editingProduct}
       db={db} company={id} Form={Form} change={change} onError={setNotice} notice={notice}
@@ -480,9 +487,12 @@ function Company({ member, token, view, selectView }) {
             <MapChoices latitude={order.delivery_latitude} longitude={order.delivery_longitude} />
           </td>
           {role !== 'supplier' && <td>{formatMoney(order.order_total)}{order.discount_percent > 0 && <small> · −{order.discount_percent}%</small>}</td>}
-          <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td>
+          <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge>
+            {order.expected_delivery_date && <div>Muddat {order.expected_delivery_date}</div>}
+            {order.decision && <div>{order.decision === 'accepted' ? 'Do‘kon qabul qildi' : 'Do‘kon rad etdi'}{order.note && <p>{order.note}</p>}</div>}
+          </td>
           {role !== 'customer' && <td>
-            <OrderActions order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
+            <OrderActions company={id} order={order} manages={manages} suppliers={suppliers} disabled={changing} change={change} />
             {order.status==='delivered'&&order.direction==='outbound'&&<button className="text-button" type="button" onClick={()=>{
               setReceiptOrder(order.id);
               selectView('receivables');
@@ -531,7 +541,10 @@ function Overview({ products, orders, manages, role, days, selectView }) {
         {recent.length ? <div className="table"><table><thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Yo‘nalish</th><th>Holat</th><th>Sana</th></tr></thead>
           <tbody>{recent.map(order => <tr key={order.id}><td>{catalog.get(order.product_id) || 'Mahsulot'}</td>
             <td>{formatCount(order.quantity)}</td><td>{order.direction === 'inbound' ? 'Kirim' : 'Chiqim'}</td>
-            <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge></td><td>{formatDashboardDate(order.created_at, true)}</td></tr>)}</tbody>
+            <td><StatusBadge status={order.status}>{statuses[order.status]}</StatusBadge>
+            {order.expected_delivery_date && <div>Muddat {order.expected_delivery_date}</div>}
+            {order.decision && <div>{order.decision === 'accepted' ? 'Do‘kon qabul qildi' : 'Do‘kon rad etdi'}{order.note && <p>{order.note}</p>}</div>}
+          </td><td>{formatDashboardDate(order.created_at, true)}</td></tr>)}</tbody>
         </table></div> : <p>Buyurtmalar hali yo‘q.</p>}
       </section>
       {role === 'supplier' && <section className="dashboard-wide">
@@ -551,14 +564,17 @@ function Overview({ products, orders, manages, role, days, selectView }) {
   </>;
 }
 
-function OrderActions({ order, manages, suppliers, disabled, change }) {
+function OrderActions({ company, order, manages, suppliers, disabled, change }) {
   const move = (next, supplier = null) => change('advance_order', {
     p_order: order.id, p_next: next, p_supplier: supplier,
   });
   if (manages && order.status === 'pending') return <>
     {order.direction === 'outbound'
-      ? suppliers.length > 0 && <Form label="Tasdiqlash" onSubmit={fields => move('approved', fields.get('supplier'))}>
+      ? suppliers.length > 0 && <Form label="Tasdiqlash" onSubmit={fields => change('approve_shop_delivery', {
+        p_company: company, p_order: order.id, p_supplier: fields.get('supplier'), p_expected: fields.get('expected') || null,
+      })}>
         <SupplierSelect suppliers={suppliers} />
+        <label>Yetkazish muddati<input type="date" name="expected" /></label>
       </Form>
       : <button className="action" disabled={disabled} onClick={() => move('approved')}>Tasdiqlash</button>}
     <button className="action" disabled={disabled} onClick={() => move('rejected')}>Rad etish</button>

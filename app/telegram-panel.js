@@ -14,7 +14,7 @@ export default function TelegramPanel({ company, accessToken, role }) {
     try {
       const response=await fetch('/api/telegram',{
         method:'POST', headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},
-        body:JSON.stringify({action:name,company}),
+        body:JSON.stringify({action:name,company,store:role==='store'}),
       });
       const result=await response.json();
       if(!response.ok) throw new Error(result.error || 'Telegram so‘rovi bajarilmadi.');
@@ -37,6 +37,7 @@ export default function TelegramPanel({ company, accessToken, role }) {
     <h2>BOSHQA Telegram boti</h2>
     <p>{role==='manager'?'Bot korxona buyurtmalari va ochiq qarzlarni ko‘rsatadi.'
       :role==='supplier'?'Bot sizga biriktirilgan buyurtmalarni, yetkazish manzili va xarita havolalarini ko‘rsatadi.'
+      :role==='store'?'Bot do‘koningiz buyurtmalarini va firmalar bo‘yicha qarzlarini ko‘rsatadi.'
       :'Bot o‘zingiz bergan buyurtmalar va ochiq qarzlaringizni ko‘rsatadi.'}</p>
     {notice && <p role="status">{notice}</p>}
     {status && <p>{status.linked?'Telegram hisobingiz ulangan.':status.configured?'Telegram hisobingiz hali ulanmagan.':'BOSHQA boti hali sozlanmagan.'}</p>}

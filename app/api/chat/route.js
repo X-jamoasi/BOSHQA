@@ -6,6 +6,7 @@ export const maxDuration = 50;
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const roleContext = {
+  store: 'Do‘kon egasi o‘z do‘konining tasdiqlangan xarajatlari, firmalar bo‘yicha qarzlari va buyurtmalarini ko‘radi. Xarajatlar faqat tasdiqlangan to‘lovlar asosida hisoblanadi. Kechikish yetkazish sanasi o‘tgan faol buyurtmaga tegishli.',
   owner: 'Korxona egasi mahsulot, xodim, buyurtma va ombor ishlarini boshqaradi.',
   manager: 'Menejer ombor va buyurtmalarni boshqaradi.',
   supplier: 'Ta’minotchi va yetkazuvchi faqat o‘ziga biriktirilgan buyurtmalar bo‘yicha ishlaydi.',
@@ -21,7 +22,7 @@ export async function POST(request) {
   const authorization = request.headers.get('Authorization');
   if (!authorization?.startsWith('Bearer ')) return failure('Hisobga kiring.', 401);
 
-  const { company, messages } = (await request.json().catch(() => null)) ?? {};
+  const { company, store, messages } = (await request.json().catch(() => null)) ?? {};
   if ((company !== null && (typeof company !== 'string' || !uuid.test(company))) ||
     !Array.isArray(messages) || !messages.length || messages.length > 9 || messages.length % 2 === 0 ||
     messages.some((message, index) => !message || message.role !== (index % 2 ? 'assistant' : 'user') ||
@@ -34,7 +35,8 @@ export async function POST(request) {
     global: { headers: { Authorization: authorization } },
   });
   if (!db) return failure('AI yordamchi sozlanmagan.', 503);
-  const { data: role, error } = await db.rpc('allow_ai_chat', { p_company: company });
+  const isStore = store === true && company === null;
+  const { data: role, error } = await (isStore ? db.rpc('allow_store_ai_chat') : db.rpc('allow_ai_chat', { p_company: company }));
   if (error) {
     if (['42501', 'PGRST301', 'PGRST303'].includes(error.code)) return failure('AI yordamchi uchun ruxsat yo‘q. Hisobingizga qayta kiring.', 403);
     return failure('AI yordamchini hozir ishga tushirib bo‘lmadi.', 503);
@@ -52,7 +54,20 @@ export async function POST(request) {
   const topic = followsUp
     ? previousQuestion + ' ' + question
     : question;
-  const context = asksModel ? null : await loadChatContext({ db, company, role, topic });
+  let context = null;
+  if (!asksModel && isStore) {
+    const { data, error: workspaceError } = await db.rpc('store_workspace').abortSignal(AbortSignal.timeout(6500));
+    if (workspaceError || !data) return failure('Do‘kon ma’lumotlarini hozir yuklab bo‘lmadi.', 503);
+    context = {
+      timezone: 'Asia/Tashkent',
+      today: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date()),
+      stats: data.stats, debts: data.debts,
+      latest_orders: data.orders.slice(0, 20).map(({ company_name, product, quantity, order_unit, status, expected_delivery_date, decision, created_at }) =>
+        ({ company_name, product, quantity, order_unit, status, expected_delivery_date, decision, created_at })),
+    };
+  } else if (!asksModel) {
+    context = await loadChatContext({ db, company, role, topic });
+  }
   const contents = messages.map(message => ({
     role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.text }],
   }));
